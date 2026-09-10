@@ -1,0 +1,38 @@
+# Environment variables & secrets (CRITICAL: NEVER COMMIT SECRETS)
+.env
+.env.local
+*.env
+
+# Python & Virtual Environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+ENV/
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# macOS system files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDEs
+.vscode/
+.idea/
+
+# Intermediate runs / cache data (keep templates, ignore raw scrapers)
+outputs/runs/
+data/cache/
+*.ndjson
+
+
+#local files and data
+docs/
+local_docs/
+outputs/
