@@ -1,0 +1,51 @@
+{
+  "timestamp": "2026-09-16T14:44:06.290954",
+  "query": "progressive resistance training frailty older adults",
+  "params": {
+    "db": "pubmed",
+    "term": "progressive resistance training frailty older adults",
+    "retmode": "json",
+    "retstart": 0,
+    "retmax": 5,
+    "sort": "pub_date",
+    "tool": "healthlab_evidence_probe",
+    "email": "your_email@gmail.com"
+  },
+  "raw_response": {
+    "header": {
+      "type": "esearch",
+      "version": "0.3"
+    },
+    "esearchresult": {
+      "count": "116",
+      "retmax": "5",
+      "retstart": "0",
+      "idlist": [
+        "42716547",
+        "42577566",
+        "42406227",
+        "42407092",
+        "42356269"
+      ],
+      "translationset": [
+        {
+          "from": "progressive",
+          "to": "\"disease progression\"[MeSH Terms] OR (\"disease\"[All Fields] AND \"progression\"[All Fields]) OR \"disease progression\"[All Fields] OR \"progression\"[All Fields] OR \"progress\"[All Fields] OR \"progressed\"[All Fields] OR \"progresses\"[All Fields] OR \"progressing\"[All Fields] OR \"progressions\"[All Fields] OR \"progressive\"[All Fields] OR \"progressively\"[All Fields] OR \"progressives\"[All Fields]"
+        },
+        {
+          "from": "resistance training",
+          "to": "\"resistance training\"[MeSH Terms] OR (\"resistance\"[All Fields] AND \"training\"[All Fields]) OR \"resistance training\"[All Fields]"
+        },
+        {
+          "from": "frailty",
+          "to": "\"frailty\"[MeSH Terms] OR \"frailty\"[All Fields] OR \"frailties\"[All Fields]"
+        },
+        {
+          "from": "older adults",
+          "to": "\"aged\"[MeSH Terms] OR \"aged\"[All Fields] OR (\"older\"[All Fields] AND \"adults\"[All Fields]) OR \"older adults\"[All Fields]"
+        }
+      ],
+      "querytranslation": "(\"disease progression\"[MeSH Terms] OR (\"disease\"[All Fields] AND \"progression\"[All Fields]) OR \"disease progression\"[All Fields] OR \"progression\"[All Fields] OR \"progress\"[All Fields] OR \"progressed\"[All Fields] OR \"progresses\"[All Fields] OR \"progressing\"[All Fields] OR \"progressions\"[All Fields] OR \"progressive\"[All Fields] OR \"progressively\"[All Fields] OR \"progressives\"[All Fields]) AND (\"resistance training\"[MeSH Terms] OR (\"resistance\"[All Fields] AND \"training\"[All Fields]) OR \"resistance training\"[All Fields]) AND (\"frailty\"[MeSH Terms] OR \"frailty\"[All Fields] OR \"frailties\"[All Fields]) AND (\"aged\"[MeSH Terms] OR \"aged\"[All Fields] OR (\"older\"[All Fields] AND \"adults\"[All Fields]) OR \"older adults\"[All Fields])"
+    }
+  }
+}

@@ -1,0 +1,335 @@
+{
+  "timestamp": "2026-09-16T15:46:31.741095",
+  "query": "progressive resistance training frailty older adults",
+  "experiment_a_sort_pub_date": {
+    "params": {
+      "db": "pubmed",
+      "term": "progressive resistance training frailty older adults",
+      "retmode": "json",
+      "retstart": 0,
+      "retmax": 5,
+      "sort": "pub_date",
+      "tool": "healthlab_evidence_probe",
+      "email": "your_email@gmail.com"
+    },
+    "count": "116",
+    "query_translation": "(\"disease progression\"[MeSH Terms] OR (\"disease\"[All Fields] AND \"progression\"[All Fields]) OR \"disease progression\"[All Fields] OR \"progression\"[All Fields] OR \"progress\"[All Fields] OR \"progressed\"[All Fields] OR \"progresses\"[All Fields] OR \"progressing\"[All Fields] OR \"progressions\"[All Fields] OR \"progressive\"[All Fields] OR \"progressively\"[All Fields] OR \"progressives\"[All Fields]) AND (\"resistance training\"[MeSH Terms] OR (\"resistance\"[All Fields] AND \"training\"[All Fields]) OR \"resistance training\"[All Fields]) AND (\"frailty\"[MeSH Terms] OR \"frailty\"[All Fields] OR \"frailties\"[All Fields]) AND (\"aged\"[MeSH Terms] OR \"aged\"[All Fields] OR (\"older\"[All Fields] AND \"adults\"[All Fields]) OR \"older adults\"[All Fields])",
+    "pmids": [
+      "42716547",
+      "42577566",
+      "42406227",
+      "42407092",
+      "42356269"
+    ],
+    "raw_response": {
+      "header": {
+        "type": "esearch",
+        "version": "0.3"
+      },
+      "esearchresult": {
+        "count": "116",
+        "retmax": "5",
+        "retstart": "0",
+        "idlist": [
+          "42716547",
+          "42577566",
+          "42406227",
+          "42407092",
+          "42356269"
+        ],
+        "translationset": [
+          {
+            "from": "progressive",
+            "to": "\"disease progression\"[MeSH Terms] OR (\"disease\"[All Fields] AND \"progression\"[All Fields]) OR \"disease progression\"[All Fields] OR \"progression\"[All Fields] OR \"progress\"[All Fields] OR \"progressed\"[All Fields] OR \"progresses\"[All Fields] OR \"progressing\"[All Fields] OR \"progressions\"[All Fields] OR \"progressive\"[All Fields] OR \"progressively\"[All Fields] OR \"progressives\"[All Fields]"
+          },
+          {
+            "from": "resistance training",
+            "to": "\"resistance training\"[MeSH Terms] OR (\"resistance\"[All Fields] AND \"training\"[All Fields]) OR \"resistance training\"[All Fields]"
+          },
+          {
+            "from": "frailty",
+            "to": "\"frailty\"[MeSH Terms] OR \"frailty\"[All Fields] OR \"frailties\"[All Fields]"
+          },
+          {
+            "from": "older adults",
+            "to": "\"aged\"[MeSH Terms] OR \"aged\"[All Fields] OR (\"older\"[All Fields] AND \"adults\"[All Fields]) OR \"older adults\"[All Fields]"
+          }
+        ],
+        "querytranslation": "(\"disease progression\"[MeSH Terms] OR (\"disease\"[All Fields] AND \"progression\"[All Fields]) OR \"disease progression\"[All Fields] OR \"progression\"[All Fields] OR \"progress\"[All Fields] OR \"progressed\"[All Fields] OR \"progresses\"[All Fields] OR \"progressing\"[All Fields] OR \"progressions\"[All Fields] OR \"progressive\"[All Fields] OR \"progressively\"[All Fields] OR \"progressives\"[All Fields]) AND (\"resistance training\"[MeSH Terms] OR (\"resistance\"[All Fields] AND \"training\"[All Fields]) OR \"resistance training\"[All Fields]) AND (\"frailty\"[MeSH Terms] OR \"frailty\"[All Fields] OR \"frailties\"[All Fields]) AND (\"aged\"[MeSH Terms] OR \"aged\"[All Fields] OR (\"older\"[All Fields] AND \"adults\"[All Fields]) OR \"older adults\"[All Fields])"
+      }
+    }
+  },
+  "experiment_a_sort_relevance": {
+    "params": {
+      "db": "pubmed",
+      "term": "progressive resistance training frailty older adults",
+      "retmode": "json",
+      "retstart": 0,
+      "retmax": 5,
+      "sort": "relevance",
+      "tool": "healthlab_evidence_probe",
+      "email": "your_email@gmail.com"
+    },
+    "count": "116",
+    "query_translation": "(\"disease progression\"[MeSH Terms] OR (\"disease\"[All Fields] AND \"progression\"[All Fields]) OR \"disease progression\"[All Fields] OR \"progression\"[All Fields] OR \"progress\"[All Fields] OR \"progressed\"[All Fields] OR \"progresses\"[All Fields] OR \"progressing\"[All Fields] OR \"progressions\"[All Fields] OR \"progressive\"[All Fields] OR \"progressively\"[All Fields] OR \"progressives\"[All Fields]) AND (\"resistance training\"[MeSH Terms] OR (\"resistance\"[All Fields] AND \"training\"[All Fields]) OR \"resistance training\"[All Fields]) AND (\"frailty\"[MeSH Terms] OR \"frailty\"[All Fields] OR \"frailties\"[All Fields]) AND (\"aged\"[MeSH Terms] OR \"aged\"[All Fields] OR (\"older\"[All Fields] AND \"adults\"[All Fields]) OR \"older adults\"[All Fields])",
+    "pmids": [
+      "39024000",
+      "39743381",
+      "40898138",
+      "40545813",
+      "39574284"
+    ],
+    "raw_response": {
+      "header": {
+        "type": "esearch",
+        "version": "0.3"
+      },
+      "esearchresult": {
+        "count": "116",
+        "retmax": "5",
+        "retstart": "0",
+        "idlist": [
+          "39024000",
+          "39743381",
+          "40898138",
+          "40545813",
+          "39574284"
+        ],
+        "translationset": [
+          {
+            "from": "progressive",
+            "to": "\"disease progression\"[MeSH Terms] OR (\"disease\"[All Fields] AND \"progression\"[All Fields]) OR \"disease progression\"[All Fields] OR \"progression\"[All Fields] OR \"progress\"[All Fields] OR \"progressed\"[All Fields] OR \"progresses\"[All Fields] OR \"progressing\"[All Fields] OR \"progressions\"[All Fields] OR \"progressive\"[All Fields] OR \"progressively\"[All Fields] OR \"progressives\"[All Fields]"
+          },
+          {
+            "from": "resistance training",
+            "to": "\"resistance training\"[MeSH Terms] OR (\"resistance\"[All Fields] AND \"training\"[All Fields]) OR \"resistance training\"[All Fields]"
+          },
+          {
+            "from": "frailty",
+            "to": "\"frailty\"[MeSH Terms] OR \"frailty\"[All Fields] OR \"frailties\"[All Fields]"
+          },
+          {
+            "from": "older adults",
+            "to": "\"aged\"[MeSH Terms] OR \"aged\"[All Fields] OR (\"older\"[All Fields] AND \"adults\"[All Fields]) OR \"older adults\"[All Fields]"
+          }
+        ],
+        "querytranslation": "(\"disease progression\"[MeSH Terms] OR (\"disease\"[All Fields] AND \"progression\"[All Fields]) OR \"disease progression\"[All Fields] OR \"progression\"[All Fields] OR \"progress\"[All Fields] OR \"progressed\"[All Fields] OR \"progresses\"[All Fields] OR \"progressing\"[All Fields] OR \"progressions\"[All Fields] OR \"progressive\"[All Fields] OR \"progressively\"[All Fields] OR \"progressives\"[All Fields]) AND (\"resistance training\"[MeSH Terms] OR (\"resistance\"[All Fields] AND \"training\"[All Fields]) OR \"resistance training\"[All Fields]) AND (\"frailty\"[MeSH Terms] OR \"frailty\"[All Fields] OR \"frailties\"[All Fields]) AND (\"aged\"[MeSH Terms] OR \"aged\"[All Fields] OR (\"older\"[All Fields] AND \"adults\"[All Fields]) OR \"older adults\"[All Fields])"
+      }
+    }
+  },
+  "experiment_b_date_filter": {
+    "params": {
+      "db": "pubmed",
+      "term": "progressive resistance training frailty older adults",
+      "retmode": "json",
+      "retstart": 0,
+      "retmax": 5,
+      "sort": "pub_date",
+      "tool": "healthlab_evidence_probe",
+      "email": "your_email@gmail.com",
+      "mindate": "2021/09/16",
+      "maxdate": "2026/09/16",
+      "datetype": "pdat"
+    },
+    "count": "56",
+    "query_translation": "(\"disease progression\"[MeSH Terms] OR (\"disease\"[All Fields] AND \"progression\"[All Fields]) OR \"disease progression\"[All Fields] OR \"progression\"[All Fields] OR \"progress\"[All Fields] OR \"progressed\"[All Fields] OR \"progresses\"[All Fields] OR \"progressing\"[All Fields] OR \"progressions\"[All Fields] OR \"progressive\"[All Fields] OR \"progressively\"[All Fields] OR \"progressives\"[All Fields]) AND (\"resistance training\"[MeSH Terms] OR (\"resistance\"[All Fields] AND \"training\"[All Fields]) OR \"resistance training\"[All Fields]) AND (\"frailty\"[MeSH Terms] OR \"frailty\"[All Fields] OR \"frailties\"[All Fields]) AND (\"aged\"[MeSH Terms] OR \"aged\"[All Fields] OR (\"older\"[All Fields] AND \"adults\"[All Fields]) OR \"older adults\"[All Fields]) AND 2021/09/16:2026/09/16[Date - Publication]",
+    "pmids": [
+      "42716547",
+      "42577566",
+      "42406227",
+      "42407092",
+      "42356269"
+    ],
+    "raw_response": {
+      "header": {
+        "type": "esearch",
+        "version": "0.3"
+      },
+      "esearchresult": {
+        "count": "56",
+        "retmax": "5",
+        "retstart": "0",
+        "idlist": [
+          "42716547",
+          "42577566",
+          "42406227",
+          "42407092",
+          "42356269"
+        ],
+        "translationset": [
+          {
+            "from": "progressive",
+            "to": "\"disease progression\"[MeSH Terms] OR (\"disease\"[All Fields] AND \"progression\"[All Fields]) OR \"disease progression\"[All Fields] OR \"progression\"[All Fields] OR \"progress\"[All Fields] OR \"progressed\"[All Fields] OR \"progresses\"[All Fields] OR \"progressing\"[All Fields] OR \"progressions\"[All Fields] OR \"progressive\"[All Fields] OR \"progressively\"[All Fields] OR \"progressives\"[All Fields]"
+          },
+          {
+            "from": "resistance training",
+            "to": "\"resistance training\"[MeSH Terms] OR (\"resistance\"[All Fields] AND \"training\"[All Fields]) OR \"resistance training\"[All Fields]"
+          },
+          {
+            "from": "frailty",
+            "to": "\"frailty\"[MeSH Terms] OR \"frailty\"[All Fields] OR \"frailties\"[All Fields]"
+          },
+          {
+            "from": "older adults",
+            "to": "\"aged\"[MeSH Terms] OR \"aged\"[All Fields] OR (\"older\"[All Fields] AND \"adults\"[All Fields]) OR \"older adults\"[All Fields]"
+          }
+        ],
+        "querytranslation": "(\"disease progression\"[MeSH Terms] OR (\"disease\"[All Fields] AND \"progression\"[All Fields]) OR \"disease progression\"[All Fields] OR \"progression\"[All Fields] OR \"progress\"[All Fields] OR \"progressed\"[All Fields] OR \"progresses\"[All Fields] OR \"progressing\"[All Fields] OR \"progressions\"[All Fields] OR \"progressive\"[All Fields] OR \"progressively\"[All Fields] OR \"progressives\"[All Fields]) AND (\"resistance training\"[MeSH Terms] OR (\"resistance\"[All Fields] AND \"training\"[All Fields]) OR \"resistance training\"[All Fields]) AND (\"frailty\"[MeSH Terms] OR \"frailty\"[All Fields] OR \"frailties\"[All Fields]) AND (\"aged\"[MeSH Terms] OR \"aged\"[All Fields] OR (\"older\"[All Fields] AND \"adults\"[All Fields]) OR \"older adults\"[All Fields]) AND 2021/09/16:2026/09/16[Date - Publication]"
+      }
+    }
+  },
+  "experiment_c_fetch": {
+    "search_candidates_pmids": [
+      "39024000",
+      "39743381",
+      "40898138",
+      "40545813"
+    ],
+    "manual_test_pmids": [
+      "21535087"
+    ],
+    "total_requested": [
+      "39024000",
+      "39743381",
+      "40898138",
+      "40545813",
+      "21535087"
+    ],
+    "fetch_params": {
+      "db": "pubmed",
+      "id": "39024000,39743381,40898138,40545813,21535087",
+      "retmode": "xml",
+      "tool": "healthlab_evidence_probe",
+      "email": "your_email@gmail.com"
+    }
+  },
+  "parsed_articles": [
+    {
+      "pmid": "39024000",
+      "title": "Assessing the Clinical Effectiveness of an Exergame-Based Exercise Training Program Using Ring Fit Adventure to Prevent and Postpone Frailty and Sarcopenia Among Older Adults in Rural Long-Term Care Facilities: Randomized Controlled Trial.",
+      "pub_date": {
+        "year": "2024",
+        "month": "Jul",
+        "day": "18"
+      },
+      "has_abstract": true,
+      "abstract_sections": [
+        {
+          "label": "BACKGROUND",
+          "nlm_category": null,
+          "text": "Frailty and sarcopenia are geriatric syndromes of increasing concern and are associated with adverse health outcomes. They are more prevalent among long-term care facility (LTCF) users than among community dwellers. Exercise, especially multicomponent and progressive resistance training, is essential for managing these conditions. However, LTCFs, particularly in rural areas, face challenges in implementing structured exercise programs due to health care professional shortages. Moreover, older adults often become bored with repetitive exercise training and may lose interest over time. The Nintendo Switch Ring Fit Adventure (RFA) exergame is a novel exergame that combines resistance, aerobic, and balance exercises and offers a potential solution by boosting motivation in an immersive manner and reducing staff intervention needs."
+        },
+        {
+          "label": "OBJECTIVE",
+          "nlm_category": null,
+          "text": "We aimed to evaluate the clinical effectiveness of an exergame-based exercise training program delivered via RFA (exergame-RFA) in improving muscle mass and functional performance among older adult LTCF users."
+        },
+        {
+          "label": "METHODS",
+          "nlm_category": null,
+          "text": "This was a randomized controlled trial conducted from August 2022 to September 2023 and involved older adult LTCF users (aged ≥60 y) in rural southern Taiwan. Participants were randomized into an intervention group (exergame-RFA plus standard care) or a control group (standard care alone). The intervention, conducted seated with arm fit skills and trunk control exercises using the RFA, lasted 30 minutes twice weekly over 12 weeks. The primary outcomes measured were the Study of Osteoporotic Fractures index (serving as an indicator of frailty status) and the diagnostic criteria for sarcopenia (appendicular skeletal muscle mass index, handgrip strength, and gait speed). The secondary outcomes included functional performance (box and block test as well as maximum voluntary isometric contraction of the dominant upper extremity), muscle condition (muscle thickness measured using ultrasonography), activities of daily living (Kihon checklist), health-related quality of life (Short Form Health Survey-36), and cognitive function (brain health test). We used an intention-to-treat analysis, incorporating a simple imputation technique in statistical analysis. A mixed ANOVA, with time as a within-participant factor and intervention as a between-participant factor, was used to compare the training effects on outcomes."
+        },
+        {
+          "label": "RESULTS",
+          "nlm_category": null,
+          "text": "We recruited 96 individuals, of whom 60 (62%) underwent randomization. Of these 60 participants, 55 (92%) completed the study. Significant group×time interactions were observed in the intervention group in all primary outcomes (all P<.001, except P=.01 for handgrip strength) and most secondary outcomes, including maximum voluntary isometric contraction of the biceps (P=.004) and triceps brachii (P<.001) muscles, biceps muscle thickness measured using ultrasonography (P<.001), box and block test (P<.001), Kihon checklist (physical function: P=.01, mood status: P=.003, and total: P=.003), and brain health test (P<.001)."
+        },
+        {
+          "label": "CONCLUSIONS",
+          "nlm_category": null,
+          "text": "The exergame-RFA intervention significantly improved muscle mass, strength, and functional performance among older adult users of rural LTCFs, offering a novel approach to addressing frailty and sarcopenia."
+        },
+        {
+          "label": "TRIAL REGISTRATION",
+          "nlm_category": null,
+          "text": "ClinicalTrials.gov NCT05360667; https://clinicaltrials.gov/study/NCT05360667."
+        },
+        {
+          "label": "INTERNATIONAL REGISTERED REPORT IDENTIFIER (IRRID)",
+          "nlm_category": null,
+          "text": "RR2-10.3389/fmed.2022.1071409."
+        }
+      ]
+    },
+    {
+      "pmid": "39743381",
+      "title": "Global consensus on optimal exercise recommendations for enhancing healthy longevity in older adults (ICFSR).",
+      "pub_date": {
+        "year": "2025",
+        "month": "Jan"
+      },
+      "has_abstract": true,
+      "abstract_sections": [
+        {
+          "label": null,
+          "nlm_category": null,
+          "text": "Aging, a universal and inevitable process, is characterized by a progressive accumulation of physiological alterations and functional decline over time, leading to increased vulnerability to diseases and ultimately mortality as age advances. Lifestyle factors, notably physical activity (PA) and exercise, significantly modulate aging phenotypes. Physical activity and exercise can prevent or ameliorate lifestyle-related diseases, extend health span, enhance physical function, and reduce the burden of non-communicable chronic diseases including cardiometabolic disease, cancer, musculoskeletal and neurological conditions, and chronic respiratory diseases as well as premature mortality. Physical activity influences the cellular and molecular drivers of biological aging, slowing aging rates-a foundational aspect of geroscience. Thus, PA serves both as preventive medicine and therapeutic agent in pathological states. Sub-optimal PA levels correlate with increased disease prevalence in aging populations. Structured exercise prescriptions should therefore be customized and monitored like any other medical treatment, considering the dose-response relationships and specific adaptations necessary for intended outcomes. Current guidelines recommend a multifaceted exercise regimen that includes aerobic, resistance, balance, and flexibility training through structured and incidental (integrated lifestyle) activities. Tailored exercise programs have proven effective in helping older adults maintain their functional capacities, extending their health span, and enhancing their quality of life. Particularly important are anabolic exercises, such as Progressive resistance training (PRT), which are indispensable for maintaining or improving functional capacity in older adults, particularly those with frailty, sarcopenia or osteoporosis, or those hospitalized or in residential aged care. Multicomponent exercise interventions that include cognitive tasks significantly enhance the hallmarks of frailty (low body mass, strength, mobility, PA level, and energy) and cognitive function, thus preventing falls and optimizing functional capacity during aging. Importantly, PA/exercise displays dose-response characteristics and varies between individuals, necessitating personalized modalities tailored to specific medical conditions. Precision in exercise prescriptions remains a significant area of further research, given the global impact of aging and broad effects of PA. Economic analyses underscore the cost benefits of exercise programs, justifying broader integration into health care for older adults. However, despite these benefits, exercise is far from fully integrated into medical practice for older people. Many healthcare professionals, including geriatricians, need more training to incorporate exercise directly into patient care, whether in settings including hospitals, outpatient clinics, or residential care. Education about the use of exercise as isolated or adjunctive treatment for geriatric syndromes and chronic diseases would do much to ease the problems of polypharmacy and widespread prescription of potentially inappropriate medications. This intersection of prescriptive practices and PA/exercise offers a promising approach to enhance the well-being of older adults. An integrated strategy that combines exercise prescriptions with pharmacotherapy would optimize the vitality and functional independence of older people whilst minimizing adverse drug reactions. This consensus provides the rationale for the integration of PA into health promotion, disease prevention, and management strategies for older adults. Guidelines are included for specific modalities and dosages of exercise with proven efficacy in randomized controlled trials. Descriptions of the beneficial physiological changes, attenuation of aging phenotypes, and role of exercise in chronic disease and disability management in older adults are provided. The use of exercise in cardiometabolic disease, cancer, musculoskeletal conditions, frailty, sarcopenia, and neuropsychological health is emphasized. Recommendations to bridge existing knowledge and implementation gaps and fully integrate PA into the mainstream of geriatric care are provided. Particular attention is paid to the need for personalized medicine as it applies to exercise and geroscience, given the inter-individual variability in adaptation to exercise demonstrated in older adult cohorts. Overall, this consensus provides a foundation for applying and extending the current knowledge base of exercise as medicine for an aging population to optimize health span and quality of life."
+        }
+      ]
+    },
+    {
+      "pmid": "40898138",
+      "title": "The effect of resistance training for older adults with cognitive frailty: a randomized controlled trial.",
+      "pub_date": {
+        "year": "2025",
+        "month": "Sep",
+        "day": "02"
+      },
+      "has_abstract": true,
+      "abstract_sections": [
+        {
+          "label": "BACKGROUND",
+          "nlm_category": "BACKGROUND",
+          "text": "Cognitive decline and the progression to dementia are hastened in individuals with cognitive frailty. Exercise interventions benefit cognitive function in patients with Mild Cognitive Impairment (MCI) or frailty. While the optimal implementation of resistance training for cognitive frailty is still being explored. The aims of this study were to develop and evaluate the effect of a novel, hybrid online-offline resistance training regimen for the cognitive frailty cohort."
+        },
+        {
+          "label": "METHODS",
+          "nlm_category": "METHODS",
+          "text": "In this single-blind, randomized controlled trial, 68 individuals with MCI and frailty or pre-frailty were enrolled and allocated to either a resistance training program or a standard senior fitness exercise regimen. The resistance training, designed based on the intervention mapping framework, comprised a 12-week hybrid intervention, blending online and offline sessions, conducted three times a week. The primary outcomes measured were global cognitive function and physical function. Data analysis was conducted meticulously using covariance analysis, with a commitment to the intention-to-treat principle."
+        },
+        {
+          "label": "RESULTS",
+          "nlm_category": "RESULTS",
+          "text": "The hybrid online-offline resistance training regimen was both safe and feasible. Participants in the resistance training group exhibited significantly greater improvements in global cognitive function as measured by MoCA (F = 6.289, p = 0.011) and 4-meter walk time (F = 10.951, P = 0.002), with least squares mean difference of 1.299 (95% CI: 0.306 to 2.291) and - 0.576 (95% CI: -0.924 to -0.228), and with effect size of 0.095, 1.114, respectively. Furthermore, resistance training proved more effective in boosting attention and enhancing quality of life. Between the groups, no significant differences were noted in executive, language, and memory functions, as well as in measures of anxiety, depression, and self-efficacy, among other aspects."
+        },
+        {
+          "label": "CONCLUSIONS",
+          "nlm_category": "CONCLUSIONS",
+          "text": "Our study demonstrated that a hybrid online-offline resistance training model is safe and effective for older people with cognitive frailty, providing modest benefits over traditional exercises in enhancing global cognitive function, attention, physical function, and quality of life."
+        },
+        {
+          "label": "TRIAL REGISTRATION",
+          "nlm_category": "BACKGROUND",
+          "text": "ChiCTR2100043826 was registered on 4 March 2021."
+        }
+      ]
+    },
+    {
+      "pmid": "40545813",
+      "title": "Sarcopenia and osteoporosis.",
+      "pub_date": {
+        "year": "2025",
+        "month": "Jun",
+        "day": "19"
+      },
+      "has_abstract": true,
+      "abstract_sections": [
+        {
+          "label": null,
+          "nlm_category": null,
+          "text": "Sarcopenia and osteoporosis are common, interconnected conditions, in aging populations that lead to increased frailty, disability and a heightened risk of falls and fractures. Sarcopenia is the progressive loss of muscle mass, strength and function, that often coexists with osteoporosis, which is characterized by reduced bone strenght for a decreased bone mineral density (BMD) and altered bone quality. Together, these conditions form a clinical syndrome known as osteosarcopenia. Both disorders share common risk factors, including chronic inflammation, oxidative stress, and hormonal changes, which accelerate the deterioration of musculoskeletal health. This chapter discusses the overlapping pathophysiology and highlights the importance of early diagnosis and integrated therapeutic strategies. Nutritional approaches, such as ensuring adequate protein, vitamin D, and calcium intake, combined with resistance training, are essential to preserving muscle and bone health. Pharmacological treatments, including bisphosphonates for osteoporosis and emerging therapies like selective androgen receptor modulators (SARMs) and myostatin inhibitors for sarcopenia, offer promising avenues for comprehensive management. A multifaceted approach targeting both conditions can reduce the risk of falls and fractures, ultimately improving quality of life in older adults."
+        }
+      ]
+    },
+    {
+      "pmid": "21535087",
+      "title": "Parasympathetic nervous system: A new therapeutic target in cardiovascular disease?",
+      "pub_date": {
+        "year": "2011",
+        "month": "May"
+      },
+      "has_abstract": false,
+      "abstract_sections": []
+    }
+  ]
+}
