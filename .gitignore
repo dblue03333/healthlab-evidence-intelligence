@@ -33,6 +33,5 @@ data/cache/
 
 
 #local files and data
-docs/
 local_docs/
 outputs/
