@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PubmedArticleSet>
+  <PubmedArticle>
+    <MedlineCitation><PMID>101</PMID><Article>
+      <Journal><Title>Fixture Journal</Title><JournalIssue><PubDate><Year>2024</Year><Month>Jul</Month></PubDate></JournalIssue></Journal>
+      <ArticleTitle>Exercise and <i>frailty</i>: a fixture</ArticleTitle>
+      <Abstract>
+        <AbstractText Label="BACKGROUND" NlmCategory="BACKGROUND">Text with <i>nested</i> words and CO<sub>2</sub>.</AbstractText>
+        <AbstractText Label="RESULTS" NlmCategory="RESULTS">Sixty participants were randomized.</AbstractText>
+      </Abstract>
+      <AuthorList><Author><ForeName>Ada</ForeName><LastName>Example</LastName></Author><Author><CollectiveName>Fixture Group</CollectiveName></Author></AuthorList>
+      <PublicationTypeList><PublicationType>Randomized Controlled Trial</PublicationType></PublicationTypeList>
+    </Article></MedlineCitation>
+    <PubmedData><ArticleIdList><ArticleId IdType="doi">10.0000/fixture</ArticleId></ArticleIdList></PubmedData>
+  </PubmedArticle>
+  <PubmedArticle><MedlineCitation><PMID>102</PMID><Article><ArticleTitle>No abstract fixture</ArticleTitle><Journal><JournalIssue><PubDate><MedlineDate>2023 Winter</MedlineDate></PubDate></JournalIssue></Journal></Article></MedlineCitation></PubmedArticle>
+  <PubmedArticle><MedlineCitation><PMID>103</PMID><Article><ArticleTitle>Unstructured fixture</ArticleTitle><Abstract><AbstractText>One full paragraph.</AbstractText></Abstract></Article></MedlineCitation></PubmedArticle>
+</PubmedArticleSet>
