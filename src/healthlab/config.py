@@ -5,6 +5,8 @@ from pathlib import Path
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from healthlab.models import ConfigurationError
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -30,7 +32,10 @@ class Settings(BaseSettings):
             or address.startswith(("your_email", "your-email"))
             or address.endswith("@example.com")
         ):
-            raise ValueError("Set NCBI_EMAIL to a real contact email before online ingestion")
+            raise ConfigurationError(
+                "config_ncbi_email",
+                "Set NCBI_EMAIL to a real contact email before online ingestion",
+            )
 
 
 class FPTSettings(BaseSettings):
@@ -61,8 +66,11 @@ class FPTSettings(BaseSettings):
             or parsed.query
             or parsed.fragment
         ):
-            raise ValueError("FPT_BASE_URL must be an HTTPS base URL without credentials/query")
+            raise ConfigurationError(
+                "config_fpt_base_url",
+                "FPT_BASE_URL must be an HTTPS base URL without credentials/query",
+            )
         if not self.api_key.get_secret_value() or self.api_key.get_secret_value().startswith(
             "your_"
         ):
-            raise ValueError("Set FPT_API_KEY before extraction")
+            raise ConfigurationError("config_fpt_api_key", "Set FPT_API_KEY before extraction")

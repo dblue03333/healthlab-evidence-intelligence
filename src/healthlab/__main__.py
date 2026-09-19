@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 from pydantic import ValidationError
@@ -9,6 +10,7 @@ from pydantic import ValidationError
 from healthlab.config import FPTSettings, Settings
 from healthlab.extraction import extract_run
 from healthlab.models import IngestionError, Question
+from healthlab.orchestration import run_workflow
 from healthlab.pipeline import import_probe, ingest, replay
 from healthlab.provider import FPTProvider
 from healthlab.pubmed import PubMedClient
@@ -31,6 +33,19 @@ def main(argv=None):
     online.add_argument("--sort", choices=["relevance", "pub_date"], default="relevance")
     online.add_argument("--mindate", help="YYYY-MM-DD publication date")
     online.add_argument("--maxdate", help="YYYY-MM-DD publication date")
+    workflow = sub.add_parser(
+        "run", help="Run ingestion, extraction and brief with durable stage tracking"
+    )
+    workflow.add_argument("--query", required=True)
+    workflow.add_argument("--question")
+    workflow.add_argument("--scope")
+    workflow.add_argument("--sort", choices=["relevance", "pub_date"], default="relevance")
+    workflow.add_argument("--mindate")
+    workflow.add_argument("--maxdate")
+    resume = sub.add_parser(
+        "resume", help="Resume a workflow with unchanged code/model configuration"
+    )
+    resume.add_argument("run_id")
     offline = sub.add_parser("replay", help="Reparse cached raw objects without network")
     offline.add_argument("run_id")
     imported = sub.add_parser("import-probe", help="Import saved CP3 files without network")
@@ -55,7 +70,34 @@ def main(argv=None):
     try:
         settings = Settings()
         store = RunStore(args.store or settings.store_dir)
-        if args.command == "ingest":
+        if args.command in {"run", "resume"}:
+            provider = FPTProvider(FPTSettings(), lazy=True)
+            try:
+                question = (
+                    None
+                    if args.command == "resume"
+                    else Question(
+                        raw_question=args.question or args.query,
+                        query=args.query,
+                        scope=args.scope,
+                        sort=args.sort,
+                        mindate=args.mindate,
+                        maxdate=args.maxdate,
+                    )
+                )
+                run = run_workflow(
+                    store,
+                    provider,
+                    question=question,
+                    client_factory=lambda: PubMedClient(settings),
+                    resume_id=args.run_id if args.command == "resume" else None,
+                    on_started=lambda run_id: print(
+                        json.dumps({"workflow_run_id": run_id}), file=sys.stderr, flush=True
+                    ),
+                )
+            finally:
+                provider.close()
+        elif args.command == "ingest":
             question = Question(
                 raw_question=args.question or args.query,
                 query=args.query,
@@ -103,9 +145,14 @@ def main(argv=None):
                     "run_id": run["run_id"],
                     "status": run["status"],
                     "counts": run.get("counts"),
-                    "brief": str(store.root / "runs" / run["run_id"] / "brief.md")
-                    if run.get("markdown_sha256")
-                    else None,
+                    "metrics": run.get("metrics"),
+                    "stages": run.get("stages"),
+                    "brief": run.get("brief")
+                    or (
+                        str(store.root / "runs" / run["run_id"] / "brief.md")
+                        if run.get("markdown_sha256")
+                        else None
+                    ),
                     "errors": run["errors"],
                     "warnings": run["warnings"],
                     "manifest": str(store.root / "runs" / run["run_id"] / "manifest.json"),

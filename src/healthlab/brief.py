@@ -8,13 +8,14 @@ from typing import Annotated, Literal
 
 from pydantic import Field, ValidationError, field_validator, model_validator
 
+from healthlab.claim_context import context_requirements, validate_context
 from healthlab.evidence import StrictContract, decode_model_json
 from healthlab.models import IngestionError
 from healthlab.store import json_bytes
 
-SYNTHESIS_PROMPT_VERSION = "brief-synthesis-2"
+SYNTHESIS_PROMPT_VERSION = "brief-synthesis-5"
 BRIEF_SCHEMA_VERSION = "brief-1"
-BRIEF_VALIDATOR_VERSION = "brief-refs-1"
+BRIEF_VALIDATOR_VERSION = "brief-refs-2"
 Text = Annotated[str, Field(min_length=1, max_length=2400)]
 Digest = Annotated[str, Field(pattern=r"^[a-f0-9]{64}$")]
 
@@ -81,6 +82,10 @@ def synthesis_messages(question, items):
                 "evidence_item_id": item["evidence_item_id"],
                 "evidence": item["evidence"],
                 "passages": item["passages"],
+                "context_requirements": context_requirements(item),
+                "required_finding_passage_ids": [
+                    p["passage_id"] for p in item["passages"] if p["field"] == "main_finding"
+                ],
                 "source_context": {
                     "title": item["document"]["title"],
                     "population": item["evidence"]["population"],
@@ -98,8 +103,27 @@ def synthesis_messages(question, items):
         "intervention/comparator, time horizon and relevant conditions when available. "
         "Use source_context.* passages for Methods/population/comparator/duration details and cite "
         "them in addition to finding passages. Every detail in claim text must be supported by "
-        "its cited passages. Context passages describe the study; do not treat planned methods "
+        "its cited passages. Each finding MUST cite at least one ID from that item's "
+        "required_finding_passage_ids, plus context references for other details. Citing a "
+        "sample-size or source-context passage alone fails validation even if it overlaps a finding. "
+        "Do not expand an intervention name into exercise components from general knowledge; "
+        "include such components only if explicitly stated in a passage you cite. "
+        "Keep outcome domains distinct: cognitive test scores are not measurements of physical "
+        "function. Do not use improvement in one domain as evidence of improvement in another. "
+        "Prefer one outcome domain per claim, and include only outcomes needed to answer the question. "
+        "Context passages describe the study; do not treat planned methods "
         "or background as additional observed findings. "
+        "Source abstracts may describe different outcomes for the whole cohort and a subset. "
+        "If context_requirements lists scope passages, explicitly retain subset/subgroup scope "
+        "in the claim and cite those passages. Bind each outcome to its own population: do not "
+        "apply a subset result to the entire cohort or a whole-cohort result only to the subset. "
+        "For mixed outcomes you may use one claim with separate clauses, e.g. strength improved "
+        "in the cohort; in the lab subset, mobility improved. Do not mention a subset merely "
+        "as a disconnected disclaimer. Cite Methods/Participants for comparator details: "
+        "a results passage saying control group does not substantiate waitlist control. "
+        "Preserve actual intervention names, including combined interventions; do not attribute "
+        "a combined-program effect to resistance training alone. Study relevance to the query "
+        "is not guaranteed by PubMed ranking. "
         "Describe what the specific study reported; do not generalize a subgroup to everyone. "
         "Association is not causation. Prefer reported_result or association; causal requires "
         "direct randomized evidence supporting exactly that interpretation. "
@@ -126,7 +150,9 @@ def synthesis_messages(question, items):
     ]
 
 
-def validate_claims(synthesis, items):
+def validate_claims(synthesis, items, *, validator_version=BRIEF_VALIDATOR_VERSION):
+    if validator_version not in {"brief-refs-1", BRIEF_VALIDATOR_VERSION}:
+        raise IngestionError("unsupported_brief_validator", "Unknown saved brief validator version")
     by_id = {item["evidence_item_id"]: item for item in items}
     causal_words = re.compile(
         r"\b(causes?|cures?|prevents?|guarantees?|leads? to|results? in)\b|"
@@ -178,6 +204,8 @@ def validate_claims(synthesis, items):
             raise IngestionError(
                 "invalid_conflict", "Conflict needs finding passages from two studies"
             )
+        if validator_version == BRIEF_VALIDATOR_VERSION:
+            validate_context(claim, [by_id[e] for e in dict.fromkeys(e for e, _ in refs)])
         if forbidden.search(claim.text):
             raise IngestionError(
                 "unsupported_conclusion",
@@ -199,6 +227,10 @@ def validate_claims(synthesis, items):
         "references_valid": True,
         "guardrails_passed": True,
         "semantic_support": "not_evaluated",
+        "relevance_review": "not_evaluated",
+        "context_guardrails": "lexical_checks_only"
+        if validator_version == BRIEF_VALIDATOR_VERSION
+        else "legacy_not_checked",
         "review_status": "AI-generated — not reviewed",
     }
 
@@ -296,6 +328,7 @@ def render_brief(brief):
         "",
         "- PubMed metadata/abstracts only; full text, WHO and grey literature were not searched.",
         "- A small selected set, not a systematic review or proof of complete literature coverage.",
+        "- PubMed ranking is not a relevance assessment. Combined-program results cannot establish the effect of one component alone.",
         "- Schema and citations were checked; semantic support, clinical interpretation and extraction correctness still require human review.",
         "- Disagreements appear as cited conflict findings when identified; absence of a conflict finding does not establish consensus.",
     ]
@@ -303,6 +336,12 @@ def render_brief(brief):
         lines.append(f"- {md(warning)}")
     for excluded in coverage["excluded"]:
         lines.append(f"- Excluded PMID {md(excluded.get('pmid'))}: {md(excluded['reason'])}.")
+        if excluded.get("title"):
+            lines.append(
+                f"  Source: {md(excluded['title'])}; publication types: "
+                f"{md(', '.join(excluded.get('publication_types', [])) or 'Not reported')}; "
+                f"extracted study type: {md(excluded.get('study_type'))}."
+            )
     lines += ["", "## Source passages and lineage", ""]
     seen_passages = set()
     for item in items.values():

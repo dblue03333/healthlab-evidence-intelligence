@@ -364,3 +364,24 @@ def test_no_finding_is_excluded_before_synthesis(tmp_path):
     assert len(items) == 1 and any(
         e["reason"] == "no_extracted_finding" for e in coverage["excluded"]
     )
+
+
+def test_reasoning_only_truncation_is_not_unknown_envelope(tmp_path):
+    from tests.test_extraction import fpt
+
+    store, _, extraction = extracted_source(tmp_path)
+    provider = fpt(
+        lambda request: httpx.Response(
+            200,
+            json={
+                "model": "fixture-model",
+                "usage": {"total_tokens": 5000},
+                "choices": [{"finish_reason": "length", "message": {"content": None}}],
+            },
+        )
+    )
+    run = synthesize_run(store, extraction["run_id"], provider)
+    assert run["status"] == "failed" and run["errors"][0]["code"] == "synthesis_incomplete"
+    assert run["finish_reason"] == "length" and run["usage"]["total_tokens"] == 5000
+    assert "brief_sha256" not in run
+    assert store.load(extraction["run_id"])["status"] == "completed"

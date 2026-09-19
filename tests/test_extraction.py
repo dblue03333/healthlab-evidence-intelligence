@@ -340,3 +340,23 @@ def test_provider_failure_is_visible_in_run_summary(tmp_path):
     )
     assert run["errors"][0]["code"] == "provider_timeout"
     assert run["warnings"] and run["status"] == "failed"
+
+
+def test_reasoning_budget_exhausted_retains_finish_reason_and_usage(tmp_path):
+    store, parent = source_run(tmp_path)
+    provider = fpt(
+        lambda request: httpx.Response(
+            200,
+            json={
+                "model": "fixture-model",
+                "usage": {"prompt_tokens": 100, "completion_tokens": 4096, "total_tokens": 4196},
+                "choices": [{"finish_reason": "length", "message": {"content": None}}],
+            },
+        )
+    )
+    run = extract_run(store, parent["run_id"], provider, max_documents=1)
+    result = run["results"][0]
+    assert result["error"]["code"] == "output_truncated"
+    assert result["finish_reason"] == "length"
+    assert result["usage"]["total_tokens"] == 4196
+    assert not result.get("evidence_item_id")

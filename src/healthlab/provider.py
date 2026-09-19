@@ -115,9 +115,17 @@ class FPTProvider:
                 choice["finish_reason"],
             )
             usage = body.get("usage") or {}
-            if not all(
-                isinstance(v, str) and v for v in (content, model, finish)
-            ) or not isinstance(usage, dict):
+            # Reasoning models can exhaust their budget before producing text.
+            # Preserve finish_reason/usage so callers report truncation, not a
+            # malformed envelope with apparently unknown token consumption.
+            if content is None and finish == "length":
+                content = ""
+            if (
+                not isinstance(content, str)
+                or (not content and finish != "length")
+                or not all(isinstance(v, str) and v for v in (model, finish))
+                or not isinstance(usage, dict)
+            ):
                 raise ValueError("invalid envelope")
             return Completion(content, model, finish, usage)
         except (ValueError, KeyError, TypeError, IndexError, AttributeError):

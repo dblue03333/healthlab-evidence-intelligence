@@ -77,3 +77,7 @@ class IngestionError(Exception):
     def __init__(self, code: str, message: str):
         super().__init__(message)
         self.code = code
+
+
+class ConfigurationError(IngestionError, ValueError):
+    """Actionable configuration failure with a safe message, never field values."""

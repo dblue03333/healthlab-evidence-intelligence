@@ -98,6 +98,9 @@ def load_bundle(store, extraction_id):
                     "snapshot_id": entry["snapshot_id"],
                     "pmid": document.pmid,
                     "reason": "no_extracted_finding",
+                    "title": document.title,
+                    "publication_types": document.publication_types,
+                    "study_type": evidence.study_type,
                 }
             )
             continue
@@ -329,7 +332,13 @@ def render_saved_brief(store: RunStore, synthesis_id: str):
             or any(p not in actual["passages"] for p in saved["passages"])
         ):
             raise IngestionError("invalid_lineage", "Brief inputs differ from saved extraction")
-    validate_claims(Synthesis.model_validate(brief["synthesis"]), brief["evidence_items"])
+    if run["validator_version"] != brief["validator_version"]:
+        raise IngestionError("invalid_lineage", "Brief validator differs from its run")
+    validate_claims(
+        Synthesis.model_validate(brief["synthesis"]),
+        brief["evidence_items"],
+        validator_version=brief["validator_version"],
+    )
     content = store.read(run["markdown_sha256"]).decode()
     path = store.root / "runs" / synthesis_id / "brief.md"
     write_preview(path, content)
