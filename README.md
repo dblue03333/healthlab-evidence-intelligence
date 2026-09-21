@@ -149,3 +149,97 @@ hits and include only reported usage; transport failures can leave usage unknown
 
 Checkpoint notes, review reports and live run artifacts are maintained internally and
 are not required to use the commands above.
+
+## Development benchmark
+
+The example suite in `benchmarks/questions_v0.1.json` contains ten authored development
+questions, including a synthetic negative control. It is not a held-out clinical benchmark.
+Freeze retrieval before comparing generation configurations:
+
+```bash
+uv run python -m healthlab.benchmark freeze --out outputs/benchmark_v01/frozen
+uv run python -m healthlab.benchmark run \
+  --frozen outputs/benchmark_v01/frozen/frozen.json --out outputs/benchmark_v01/baseline
+uv run python -m healthlab.benchmark report \
+  --frozen outputs/benchmark_v01/frozen/frozen.json \
+  --baseline outputs/benchmark_v01/baseline/baseline.json --out outputs/benchmark_v01/review
+```
+
+`freeze` calls PubMed; `run` can call FPT and uses the existing extraction cache.
+`report` is offline and produces source/output review packets, unjudged review templates,
+and denominator-explicit metrics. Relevance and factual labels require an identified human
+reviewer and rationale. Unjudged values remain null; schema or passage validity is not
+factual correctness. Recall is unavailable without an independently judged relevant set.
+Use a new baseline directory for changed code/model configurations. Run only one process
+per benchmark directory and inspect intermediate artifacts before restarting an interrupted
+case; benchmark execution is not an exactly-once job scheduler.
+
+An opt-in sample-size prompt experiment runs fresh paired extraction calls on five
+predeclared frozen abstracts without changing production prompts or publishing cache entries:
+
+```bash
+uv run python -m healthlab.sample_size_experiment \
+  --frozen outputs/benchmark_v01/frozen/frozen.json --out outputs/sample_size_trial
+```
+
+It makes ten FPT calls, with no automatic retries. Its count/role checks are development
+hypotheses, not human factual labels; review results before promoting a prompt change.
+
+## Optional OpenRouter backend
+
+Set `OPENROUTER_API_KEY`, an explicit `OPENROUTER_MODEL` and an endpoint slug in
+`OPENROUTER_PROVIDER` in your local `.env`. Keep credentials out of source control.
+Provider selection is a global option, before the subcommand:
+
+```bash
+uv run python -m healthlab --provider openrouter run --query 'resistance training frailty older adults'
+uv run python -m healthlab.benchmark --provider openrouter run \
+  --frozen outputs/benchmark_v01/frozen/frozen.json --out outputs/router_baseline
+```
+
+Routing pins one endpoint with fallbacks disabled. Requests retain the returned model,
+provider, generation ID and reported usage/cost when available. Unexpected returned
+model IDs fail explicitly; automatic model selection and routing suffixes are rejected.
+No automatic retry is performed. A key spending limit may return HTTP 403; this is a
+credit failure, not an empty evidence result. Cache and workflow identities include
+provider routing. FPT remains the default. Live access and human quality evaluation
+are separate from adapter test coverage; an installed adapter is not a validated backup.
+
+## CP13: local review backend (UI deferred)
+
+Review a validated **synthesis run ID**, not the parent workflow ID. These commands
+are offline and require no API key:
+
+```bash
+uv run python -m healthlab.review packet SYNTHESIS_RUN_ID
+uv run python -m healthlab.review history SYNTHESIS_RUN_ID
+uv run python -m healthlab.review submit SYNTHESIS_RUN_ID \
+  --expected-head none --action needs_revision \
+  --reviewer 'Reviewer name' --rationale 'Explain the review decision'
+```
+
+The packet contains the question/scope, original claims, references, passages and
+source documents. `submit` supports `accept`, `edit`, `reject`, `needs_revision`.
+For subsequent decisions, replace `none` with the current event hash from `history`;
+stale submissions are rejected under a local file lock. A human reviewer must provide
+their name and rationale. Names are self-declared: this local CLI is not an authenticated
+multi-user review service and does not independently establish factual correctness.
+
+To edit Vietnamese wording, use `--action edit --edits path/to/edits.json`, where the
+file maps existing claim IDs to nonempty text, for example `{"C1": "Reviewed Vietnamese wording"}`.
+Edits are retained separately from the original text and keep the claim's evidence
+references. Edits require a subsequent `accept`; they never auto-approve. Omitted claim
+IDs retain prior edits. Regeneration creates a new brief version with no inherited approval.
+
+```bash
+uv run python -m healthlab.review export SYNTHESIS_RUN_ID
+```
+
+Export requires the latest decision to accept that exact version. It produces a hashed
+Markdown handoff in the synthesis run directory, with reviewer/event/version identifiers,
+editorial text and original evidence. The original draft keeps its original unreviewed
+label as historical source; the handoff header records the separate human decision.
+Source-object links work within the local store; this is not a standalone attachment.
+Exports are historical snapshots and are not recalled after a later rejection; check
+`history` before distributing. Keep the object store and review history together.
+The roadmap's web UI and nontechnical team usability criteria remain deferred.

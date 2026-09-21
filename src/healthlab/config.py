@@ -74,3 +74,43 @@ class FPTSettings(BaseSettings):
             "your_"
         ):
             raise ConfigurationError("config_fpt_api_key", "Set FPT_API_KEY before extraction")
+
+
+class OpenRouterSettings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env", extra="ignore", populate_by_name=True, hide_input_in_errors=True
+    )
+    api_key: SecretStr = Field(default=SecretStr(""), validation_alias="OPENROUTER_API_KEY")
+    model: str = Field(default="", validation_alias="OPENROUTER_MODEL")
+    provider_slug: str = Field(default="", validation_alias="OPENROUTER_PROVIDER")
+    timeout: float = Field(default=60, gt=0, le=120, validation_alias="OPENROUTER_TIMEOUT")
+    max_tokens: int = Field(
+        default=4096, ge=256, le=16384, validation_alias="OPENROUTER_MAX_TOKENS"
+    )
+
+    def validate_identity(self):
+        if (
+            not self.model.strip()
+            or self.model != self.model.strip()
+            or "/" not in self.model
+            or self.model in {"openrouter/auto", "openrouter/free"}
+            or ":" in self.model
+        ):
+            raise ConfigurationError(
+                "config_openrouter_model",
+                "Set OPENROUTER_MODEL to an explicit model ID without routing suffixes",
+            )
+        if not self.provider_slug.strip() or self.provider_slug != self.provider_slug.strip():
+            raise ConfigurationError(
+                "config_openrouter_provider",
+                "Set OPENROUTER_PROVIDER to a single provider endpoint slug",
+            )
+
+    def validate_online(self):
+        self.validate_identity()
+        if not self.api_key.get_secret_value() or self.api_key.get_secret_value().startswith(
+            "your_"
+        ):
+            raise ConfigurationError(
+                "config_openrouter_api_key", "Set OPENROUTER_API_KEY before OpenRouter calls"
+            )

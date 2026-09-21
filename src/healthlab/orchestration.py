@@ -31,6 +31,7 @@ def contract(provider):
         "claim_context",
         "synthesis",
         "provider",
+        "openrouter",
         "orchestration",
         "store",
     )

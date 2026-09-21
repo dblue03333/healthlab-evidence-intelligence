@@ -35,3 +35,6 @@ data/cache/
 #local files and data
 local_docs/
 outputs/
+
+# Internal planning, checkpoint notes and evaluation reports (local only)
+docs/

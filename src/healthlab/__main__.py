@@ -7,9 +7,10 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from healthlab.config import FPTSettings, Settings
+from healthlab.config import FPTSettings, OpenRouterSettings, Settings
 from healthlab.extraction import extract_run
 from healthlab.models import IngestionError, Question
+from healthlab.openrouter import OpenRouterProvider
 from healthlab.orchestration import run_workflow
 from healthlab.pipeline import import_probe, ingest, replay
 from healthlab.provider import FPTProvider
@@ -23,6 +24,7 @@ def main(argv=None):
     parser.add_argument(
         "--store", type=Path, help="Data root (default HEALTHLAB_STORE_DIR or outputs)"
     )
+    parser.add_argument("--provider", choices=["fpt", "openrouter"], default="fpt")
     sub = parser.add_subparsers(dest="command", required=True)
     online = sub.add_parser("ingest", help="Search, fetch and persist top 5 PubMed records")
     online.add_argument(
@@ -70,8 +72,14 @@ def main(argv=None):
     try:
         settings = Settings()
         store = RunStore(args.store or settings.store_dir)
+
+        def selected_provider(**options):
+            if args.provider == "openrouter":
+                return OpenRouterProvider(OpenRouterSettings(), **options)
+            return FPTProvider(FPTSettings(), **options)
+
         if args.command in {"run", "resume"}:
-            provider = FPTProvider(FPTSettings(), lazy=True)
+            provider = selected_provider(lazy=True)
             try:
                 question = (
                     None
@@ -116,7 +124,7 @@ def main(argv=None):
         elif args.command == "extract":
             if args.refresh and args.cache_only:
                 raise ValueError("--refresh and --cache-only cannot be used together")
-            provider = FPTProvider(FPTSettings(), cache_only=args.cache_only)
+            provider = selected_provider(cache_only=args.cache_only)
             try:
                 run = extract_run(
                     store,
@@ -128,7 +136,7 @@ def main(argv=None):
             finally:
                 provider.close()
         elif args.command == "brief":
-            provider = FPTProvider(FPTSettings(), lazy=True)
+            provider = selected_provider(lazy=True)
             try:
                 run = synthesize_run(store, args.run_id, provider)
             finally:
