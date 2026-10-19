@@ -1,0 +1,69 @@
+name: HealthLab checks
+
+on:
+  push:
+    branches: [main, 'codex/**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  offline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: '0.11.13'
+          python-version: '3.11'
+      - run: uv sync --locked --extra dev --extra cloud
+      - run: uv run --locked ruff check src tests scripts
+      - run: uv run --locked ruff format --check src tests scripts
+      - run: uv run --locked python scripts/ci_checks.py
+
+  postgres:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: healthlab_test
+          POSTGRES_PASSWORD: disposable_test_password
+          POSTGRES_DB: healthlab_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U healthlab_test -d healthlab_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: '0.11.13'
+          python-version: '3.11'
+      - run: uv sync --locked --extra dev --extra cloud
+      - run: uv run --locked python scripts/ci_checks.py --postgres
+        env:
+          HEALTHLAB_TEST_POSTGRES_DSN: postgresql://healthlab_test:disposable_test_password@127.0.0.1:5432/healthlab_test
+
+  container:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: docker build --tag healthlab-signal:ci .
+      - run: sh scripts/container_smoke.sh healthlab-signal:ci

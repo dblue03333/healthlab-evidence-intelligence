@@ -422,6 +422,55 @@ Target lineage for the full system:
 Claim → EvidenceItem → Passage → DocumentSnapshot → PubMed record
 ```
 
+## Container and CI (T2 preparation)
+
+Build the batch worker and exercise the installed package without network access:
+
+```bash
+docker build --tag healthlab-signal:local .
+sh scripts/container_smoke.sh healthlab-signal:local
+```
+
+The image installs the locked runtime and cloud extras, runs as UID/GID 10001,
+and defaults to CLI help. Its build context allows only source, package metadata
+and the five reusable source/storage configurations. Credentials, reports, saved
+runs, Git metadata and tests are excluded. The runtime contains the installed
+package and source configuration; uv and development tools remain outside it.
+The multi-stage, non-editable installation follows the
+[uv Docker integration guide](https://docs.astral.sh/uv/guides/integration/docker/).
+
+Use a named volume to retain the complete local object/run store across containers:
+
+```bash
+docker volume create healthlab-signal-data
+docker run --rm --network none \
+  --mount type=volume,src=healthlab-signal-data,dst=/data \
+  healthlab-signal:local check-config
+```
+
+All Signal commands use `/data/signal` by default inside the image. For intentional
+online collection/model calls, omit `--network none` and supply runtime credentials
+with `--env-file .env`; do not put them in build arguments or the image. Approval
+and sending remain separate CLI actions. A Docker volume here is local storage;
+Cloud Run's temporary filesystem does not replace GCS/PostgreSQL persistence.
+
+GitHub Actions runs locked lint/format and offline tests, the four real PostgreSQL
+integration tests against a disposable service, and Docker build/smoke checks.
+The smoke test disables networking, uses a read-only root filesystem, verifies the
+packaged HTML rules and reads saved objects from a second container. The workflow
+builds locally on the runner and does not publish images, provision resources,
+call models or send email. Running the PostgreSQL job is distinct from cloud
+storage acceptance. For equivalent local tests:
+
+```bash
+uv run --locked python scripts/ci_checks.py
+# Disposable loopback PostgreSQL only:
+uv run --locked python scripts/ci_checks.py --postgres
+```
+
+The latter requires `HEALTHLAB_TEST_POSTGRES_DSN`; it blocks external connections.
+T1 human review/inbox acceptance and T2 full-workflow persistence are still pending.
+
 ## Setup
 
 Python 3.11+ and uv:

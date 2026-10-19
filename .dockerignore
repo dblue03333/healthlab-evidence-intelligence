@@ -1,0 +1,18 @@
+# Allow only application inputs into any Docker build stage.
+**
+!Dockerfile
+!pyproject.toml
+!uv.lock
+!README.md
+!src/
+!src/**
+!config/
+!config/signal_sources.json
+!config/signal_sources_legacy_sample.json
+!config/signal_sources_html_example.json
+!config/signal_official_probe_targets.json
+!config/signal_storage_cloud.example.json
+**/__pycache__/
+**/*.pyc
+**/.env
+**/.env.*
