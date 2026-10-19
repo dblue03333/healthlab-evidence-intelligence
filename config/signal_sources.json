@@ -1,0 +1,197 @@
+{
+  "schema_version": "signal-registry-3",
+  "sources": [
+    {
+      "source_id": "moh_population",
+      "organization": "Bộ Y tế / Cục Dân số",
+      "kind": "html",
+      "url": "https://vnpa.moh.gov.vn/",
+      "geography": "Vietnam",
+      "enabled": true,
+      "required": true,
+      "max_documents": 6,
+      "max_article_fetches": 180,
+      "usage_policy": "Public WordPress posts API on the same official host, filtered by site-local publication window; validate total counts and pages. Fetch canonical HTML article bodies separately. No exhaustive website claim beyond public posts API; repost provenance/status require triage.",
+      "html_rules": {
+        "rule_id": "moh_population",
+        "host": "vnpa.moh.gov.vn",
+        "article_urls": {
+          "include_path_patterns": [
+            "/[^/]+/"
+          ],
+          "exclude_paths": [
+            "/chuc-nang-nhiem-vu/",
+            "/co-cau-to-chuc/",
+            "/gioi-thieu/",
+            "/he-thong-van-ban/",
+            "/lanh-dao-cuc-dan-so/",
+            "/lanh-dao-duong-nhiem/",
+            "/lich-su-phat-trien/",
+            "/so-lieu-thong-ke/",
+            "/tai-lieu-chuyen-mon/",
+            "/thong-tin-lien-he/",
+            "/tin-tuc-su-kien/"
+          ]
+        },
+        "body": {
+          "classes": [
+            "single-page"
+          ]
+        }
+      },
+      "html_discovery": {
+        "wordpress_api_url": "https://vnpa.moh.gov.vn/wp-json/wp/v2/posts",
+        "api_page_size": 50,
+        "max_listing_pages": 6
+      }
+    },
+    {
+      "source_id": "hcm_health",
+      "organization": "Sở Y tế TP.HCM",
+      "kind": "html",
+      "url": "https://medinet.hochiminhcity.gov.vn/tin-tuc-su-kien-c1780.aspx",
+      "geography": "Ho Chi Minh City, Vietnam",
+      "enabled": true,
+      "required": true,
+      "max_documents": 6,
+      "max_article_fetches": 100,
+      "usage_policy": "Tin tuc su kien category, observed sequential pagination and chronological publication boundary; up to six listings. Out-of-window cards are recorded with saved listing date evidence without claiming their article content was read. Missing/conflicting dates require article fetch/review.",
+      "html_rules": {
+        "rule_id": "hcm_medinet",
+        "host": "medinet.hochiminhcity.gov.vn",
+        "article_urls": {
+          "include_path_patterns": [
+            ".*-c1780-\\d+\\.[aA][sS][pP][xX]"
+          ]
+        },
+        "body": {
+          "classes": [
+            "ContentODM"
+          ]
+        },
+        "article_scope": {
+          "classes": [
+            "contentNew"
+          ]
+        },
+        "require_article_scope": false,
+        "lead": {
+          "classes": [
+            "sapodetail"
+          ]
+        },
+        "text_dates": [
+          {
+            "selector": {
+              "tag": "div",
+              "classes": [
+                "time"
+              ]
+            },
+            "kind": "modified",
+            "scope": "article_children",
+            "format": "%d/%m/%Y",
+            "pattern": "Cập nhật:\\s*\\d{1,2}:\\d{1,2},\\s*(?P<date>\\d{1,2}/\\d{1,2}/\\d{4})(?:\\s.*)?"
+          }
+        ],
+        "listing_date": {
+          "selector": {
+            "classes": [
+              "time"
+            ]
+          }
+        }
+      },
+      "html_discovery": {
+        "listing_path_patterns": [
+          "/tin-tuc-su-kien-c1780(?:-p\\d+)?\\.aspx"
+        ],
+        "pagination_selector": {
+          "classes": [
+            "pagination"
+          ]
+        },
+        "upgrade_same_host_http": true,
+        "max_listing_pages": 6,
+        "sequential_page_pattern": "/tin-tuc-su-kien-c1780(?:-p(?P<page>\\d+))?\\.aspx",
+        "stop_before_window": true,
+        "skip_outside_window": true
+      }
+    },
+    {
+      "source_id": "who_ageing",
+      "organization": "World Health Organization",
+      "kind": "html",
+      "url": "https://www.who.int/health-topics/ageing",
+      "geography": "International; Vietnam relevance requires review",
+      "enabled": true,
+      "required": true,
+      "max_documents": 4,
+      "max_article_fetches": 100,
+      "usage_policy": "WHO Ageing landing plus Vietnam-office news/releases/features/commentaries/speeches. Global filtered All news is outside current domestic monitoring scope, not a required listing. Bound publication dates allow explicit out-of-window content skips; HTML responses bounded at 4MB. No exhaustive website claim.",
+      "html_rules": {
+        "rule_id": "who_news",
+        "host": "www.who.int",
+        "article_urls": {
+          "include_path_patterns": [
+            "/news/item/.*",
+            "/vietnam/news/detail/.*",
+            "/vietnam/news/feature-stories/item/.*",
+            "/vietnam/news/commentaries/detail/.*",
+            "/vietnam/news/speeches/speech/.*"
+          ]
+        },
+        "body": {
+          "classes": [
+            "sf-detail-body-wrapper"
+          ]
+        },
+        "text_dates": [
+          {
+            "selector": {
+              "classes": [
+                "timestamp"
+              ]
+            },
+            "kind": "published",
+            "scope": "document",
+            "format": "%d %B %Y",
+            "fallback_only": true
+          }
+        ],
+        "revision": 2,
+        "listing_date": {
+          "selector": {
+            "classes": [
+              "timestamp"
+            ]
+          },
+          "format": "%d %B %Y",
+          "max_ancestor_levels": 4
+        }
+      },
+      "html_discovery": {
+        "additional_listing_urls": [
+          "https://www.who.int/vietnam/news",
+          "https://www.who.int/vietnam/news/releases/1",
+          "https://www.who.int/vietnam/news/feature-stories",
+          "https://www.who.int/vietnam/news/commentaries",
+          "https://www.who.int/vietnam/news/speeches"
+        ],
+        "listing_path_patterns": [
+          "/vietnam/news/(?:releases|feature-stories|commentaries|speeches)(?:/\\d+)?"
+        ],
+        "drop_query_parameters": [
+          "_x_tr_pto",
+          "_x_tr_sl",
+          "_x_tr_tl",
+          "_x_tr_hl"
+        ],
+        "max_listing_pages": 12,
+        "stop_before_window": true,
+        "skip_outside_window": true
+      },
+      "html_max_response_bytes": 4000000
+    }
+  ]
+}

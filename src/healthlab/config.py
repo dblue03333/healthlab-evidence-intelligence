@@ -1,6 +1,7 @@
 """Typed configuration. Contact requirements apply only to online ingestion."""
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -113,4 +114,27 @@ class OpenRouterSettings(BaseSettings):
         ):
             raise ConfigurationError(
                 "config_openrouter_api_key", "Set OPENROUTER_API_KEY before OpenRouter calls"
+            )
+
+
+class GeminiSettings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env", extra="ignore", populate_by_name=True, hide_input_in_errors=True
+    )
+    api_key: SecretStr = Field(default=SecretStr(""), validation_alias="GEMINI_API_KEY")
+    model: Literal["gemini-3.8-flash", "gemini-3.1-pro-preview"] = Field(
+        default="gemini-3.8-flash", validation_alias="GEMINI_MODEL_NAME"
+    )
+    timeout: float = Field(default=90, gt=0, le=120, validation_alias="GEMINI_TIMEOUT")
+    max_tokens: int = Field(default=8192, ge=256, le=16384, validation_alias="GEMINI_MAX_TOKENS")
+    temperature: float = Field(default=1.0, ge=0, le=2, validation_alias="GEMINI_TEMPERATURE")
+    thinking_level: Literal["low", "medium", "high"] = Field(
+        default="low", validation_alias="GEMINI_THINKING_LEVEL"
+    )
+
+    def validate_online(self):
+        key = self.api_key.get_secret_value()
+        if not key.strip() or key != key.strip() or key.startswith("your_"):
+            raise ConfigurationError(
+                "config_gemini_api_key", "Set GEMINI_API_KEY before Gemini calls"
             )

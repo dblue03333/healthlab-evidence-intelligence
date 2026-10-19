@@ -1,0 +1,22 @@
+{
+  "sources": [
+    {
+      "source_id": "moh_population",
+      "organization": "Bộ Y tế / Cục Dân số — candidate endpoint",
+      "url": "https://vnpa.moh.gov.vn/"
+    },
+    {
+      "source_id": "hcm_health",
+      "organization": "Sở Y tế TP.HCM",
+      "url": "https://medinet.hochiminhcity.gov.vn/Default.aspx"
+    },
+    {
+      "source_id": "who_ageing",
+      "organization": "WHO — Ageing",
+      "url": "https://www.who.int/health-topics/ageing",
+      "article_path_prefixes": [
+        "/news/item/"
+      ]
+    }
+  ]
+}

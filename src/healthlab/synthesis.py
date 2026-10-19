@@ -87,7 +87,14 @@ def load_bundle(store, extraction_id):
             raise IngestionError(
                 "invalid_lineage", "Parsed evidence differs from original model output"
             )
-        passages = verify_passages(evidence, document, entry["snapshot_id"])
+        if raw["validator_version"] != extraction["validator_version"]:
+            raise IngestionError("invalid_lineage", "Evidence validator differs from extraction")
+        passages = verify_passages(
+            evidence,
+            document,
+            entry["snapshot_id"],
+            validator_version=raw["validator_version"],
+        )
         if passages != raw["passages"]:
             raise IngestionError(
                 "invalid_lineage", "Saved passage identities or offsets do not match source"

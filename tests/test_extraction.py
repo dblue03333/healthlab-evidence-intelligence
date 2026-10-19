@@ -253,6 +253,71 @@ def test_fpt_wire_contract_and_recorded_actual_model():
     assert events[0][0]["http_status"] == 200
 
 
+def test_fpt_json_schema_is_explicit_audited_and_has_no_http_fallback():
+    from healthlab.provider import schema_digest
+
+    seen = []
+    schema = {
+        "type": "object",
+        "properties": {"x": {"type": "integer"}},
+        "required": ["x"],
+        "additionalProperties": False,
+    }
+
+    def handler(request):
+        seen.append(json.loads(request.content))
+        return httpx.Response(400, json={"error": "unsupported schema"})
+
+    provider = fpt(handler)
+    events = []
+    with pytest.raises(IngestionError, match="400"):
+        provider.complete_json(
+            [{"role": "user", "content": "JSON"}], lambda e, b: events.append((e, b)), schema=schema
+        )
+    assert len(seen) == len(events) == 1
+    assert seen[0]["response_format"] == {
+        "type": "json_schema",
+        "json_schema": {"name": "healthlab_signal", "strict": True, "schema": schema},
+    }
+    assert events[0][0]["response_schema_sha256"] == schema_digest(schema)
+    assert events[0][0]["response_format"] == "json_schema"
+
+
+def test_fpt_json_object_requests_syntax_without_claiming_wire_schema_enforcement():
+    seen, events = [], []
+    schema = {"type": "object", "properties": {}, "required": [], "additionalProperties": False}
+
+    def handler(request):
+        seen.append(json.loads(request.content))
+        return httpx.Response(
+            200,
+            json={
+                "model": "fixture",
+                "choices": [{"finish_reason": "stop", "message": {"content": "{}"}}],
+            },
+        )
+
+    p = fpt(handler)
+    p.complete_json_object([], lambda e, b: events.append((e, b)), schema=schema)
+    assert seen[0]["response_format"] == {"type": "json_object"}
+    assert events[0][0]["response_format"] == "json_object"
+    assert "response_schema_sha256" in events[0][0]
+
+
+def test_fpt_interruption_is_audited_once_and_propagated_without_retry():
+    def handler(request):
+        raise KeyboardInterrupt()
+
+    events = []
+    provider = fpt(handler)
+    with pytest.raises(KeyboardInterrupt):
+        provider.complete([], lambda e, b: events.append((e, b)))
+    assert len(events) == 1
+    assert events[0][0]["error_code"] == "provider_interrupted"
+    assert events[0][1] is None
+    assert "fpt-test-secret" not in json.dumps(events)
+
+
 @pytest.mark.parametrize(
     "status,code",
     [

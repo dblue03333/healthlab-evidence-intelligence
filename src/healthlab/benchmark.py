@@ -93,13 +93,15 @@ def load_frozen(store, path):
     return frozen
 
 
-def run_baseline(store, frozen_path, destination, provider):
+def run_baseline(store, frozen_path, destination, provider, *, refresh=False):
     frozen = load_frozen(store, frozen_path)
     identity = {
         "frozen_sha256": read(frozen_path)["frozen_sha256"],
         "contract": contract(provider),
         "benchmark_code_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
     }
+    if refresh:
+        identity["cache_policy"] = "fresh-extraction-calls"
     destination.mkdir(parents=True, exist_ok=True)
     path = destination / "baseline.json"
     baseline = (
@@ -130,7 +132,11 @@ def run_baseline(store, frozen_path, destination, provider):
                 start = time.monotonic()
                 if name == "synthesis":
                     parent = row["stages"]["extraction"]["run_id"]
-                child = operation(store, parent, provider)
+                child = (
+                    operation(store, parent, provider, refresh=True)
+                    if name == "extraction" and refresh
+                    else operation(store, parent, provider)
+                )
                 row["stages"][name] = {
                     "run_id": child["run_id"],
                     "status": child["status"],
@@ -354,6 +360,9 @@ def main():
     parser.add_argument("--suite", type=Path, default=Path("benchmarks/questions_v0.1.json"))
     parser.add_argument("--frozen", type=Path)
     parser.add_argument("--baseline", type=Path)
+    parser.add_argument(
+        "--refresh", action="store_true", help="Bypass extraction cache for live baseline calls"
+    )
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
     store = RunStore(args.store)
@@ -370,7 +379,7 @@ def main():
             else FPTProvider(FPTSettings(), lazy=True)
         )
         try:
-            run_baseline(store, args.frozen, args.out, provider)
+            run_baseline(store, args.frozen, args.out, provider, refresh=args.refresh)
         finally:
             provider.close()
     else:

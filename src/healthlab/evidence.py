@@ -7,11 +7,12 @@ from typing import Annotated, Literal
 from pydantic import ConfigDict, Field, ValidationError, model_validator
 
 from healthlab.models import Contract, Document, IngestionError
+from healthlab.sample_policy import SAMPLE_INSTRUCTIONS, verify_sample_counts
 from healthlab.store import json_bytes
 
-PROMPT_VERSION = "paper-extract-1"
+PROMPT_VERSION = "paper-extract-2"
 SCHEMA_VERSION = "evidence-1"
-VALIDATOR_VERSION = "passage-1"
+VALIDATOR_VERSION = "passage-sample-2"
 Nonempty = Annotated[str, Field(min_length=1)]
 
 
@@ -69,6 +70,7 @@ def build_messages(document: Document):
         "or search-coverage limitations into author_limitations. "
         "Schema: " + json.dumps(schema, ensure_ascii=False, sort_keys=True)
     )
+    instructions += " " + SAMPLE_INSTRUCTIONS
     return [
         {"role": "system", "content": instructions},
         {
@@ -126,7 +128,15 @@ def parse_content(content: str) -> ExtractedEvidence:
         ) from None
 
 
-def verify_passages(evidence: ExtractedEvidence, document: Document, snapshot_id: str):
+def verify_passages(
+    evidence: ExtractedEvidence,
+    document: Document,
+    snapshot_id: str,
+    *,
+    validator_version=VALIDATOR_VERSION,
+):
+    if validator_version not in {"passage-1", VALIDATOR_VERSION}:
+        raise IngestionError("validator_version", "Unsupported extraction validator")
     references = []
     if evidence.main_finding is not None:
         references.append(("main_finding", evidence.supporting_passage, evidence.section_index))
@@ -157,4 +167,6 @@ def verify_passages(evidence: ExtractedEvidence, document: Document, snapshot_id
         }
         passage["passage_id"] = hashlib.sha256(json_bytes(passage)).hexdigest()
         passages.append({"field": field, **passage})
+    if validator_version == VALIDATOR_VERSION:
+        verify_sample_counts(evidence)
     return passages

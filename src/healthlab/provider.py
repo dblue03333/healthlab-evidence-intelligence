@@ -1,5 +1,6 @@
 """Small provider interface; no silent retry or fallback between models."""
 
+import hashlib
 import json
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -12,6 +13,21 @@ from healthlab.models import IngestionError
 from healthlab.pubmed import utc_now
 
 Audit = Callable[[dict, bytes | None], None]
+
+
+def json_schema_format(schema):
+    if schema.get("type") != "object" or schema.get("additionalProperties") is not False:
+        raise ValueError("Structured output requires a closed object schema")
+    return {
+        "type": "json_schema",
+        "json_schema": {"name": "healthlab_signal", "strict": True, "schema": schema},
+    }
+
+
+def schema_digest(schema):
+    return hashlib.sha256(
+        json.dumps(schema, ensure_ascii=False, sort_keys=True, indent=2).encode("utf-8")
+    ).hexdigest()
 
 
 @dataclass
@@ -55,6 +71,20 @@ class FPTProvider:
             self.client.close()
 
     def complete(self, messages, audit):
+        return self._complete(messages, audit)
+
+    def complete_json(self, messages, audit, *, schema):
+        """Request strict schema output explicitly; never retry as unconstrained text."""
+        return self._complete(messages, audit, response_format=json_schema_format(schema))
+
+    def complete_json_object(self, messages, audit, *, schema):
+        """Request JSON syntax; the supplied schema remains a locally validated contract."""
+        json_schema_format(schema)
+        return self._complete(
+            messages, audit, response_format={"type": "json_object"}, contract=schema
+        )
+
+    def _complete(self, messages, audit, *, response_format=None, contract=None):
         if self.cache_only:
             raise IngestionError(
                 "cache_miss", "No valid cached extraction; cache-only mode does not call FPT"
@@ -70,17 +100,30 @@ class FPTProvider:
             "error_code": None,
             "body_redacted": False,
         }
+        payload = {
+            "model": self.settings.model,
+            "messages": messages,
+            "temperature": 0.0,
+            "max_tokens": self.settings.max_tokens,
+        }
+        if response_format is not None:
+            payload["response_format"] = response_format
+            event.update(
+                response_format=response_format["type"],
+                response_schema_sha256=schema_digest(
+                    contract if contract is not None else response_format["json_schema"]["schema"]
+                ),
+            )
         try:
             response = self.client.post(
                 self.settings.base_url.rstrip("/") + "/chat/completions",
                 headers={"Authorization": f"Bearer {key}"},
-                json={
-                    "model": self.settings.model,
-                    "messages": messages,
-                    "temperature": 0.0,
-                    "max_tokens": self.settings.max_tokens,
-                },
+                json=payload,
             )
+        except (KeyboardInterrupt, SystemExit):
+            event.update(error_code="provider_interrupted", finished_at=utc_now())
+            audit(event, None)
+            raise
         except httpx.TransportError as exc:
             code = (
                 "provider_timeout"
@@ -164,3 +207,10 @@ class FakeProvider:
             result.content.encode(),
         )
         return result
+
+    def complete_json(self, messages, audit, *, schema):
+        self.response_schemas = getattr(self, "response_schemas", []) + [schema]
+        return self.complete(messages, audit)
+
+    def complete_json_object(self, messages, audit, *, schema):
+        return self.complete_json(messages, audit, schema=schema)

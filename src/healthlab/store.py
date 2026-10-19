@@ -16,6 +16,14 @@ def json_bytes(value):
     return json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2).encode("utf-8")
 
 
+def sync_directory(path):
+    fd = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
 class RunStore:
     def __init__(self, root: Path):
         self.root = Path(root)
@@ -40,6 +48,7 @@ class RunStore:
             except FileExistsError:
                 if path.read_bytes() != content:
                     raise IngestionError("cache_corrupt", "Concurrent object mismatch")
+            sync_directory(path.parent)
         finally:
             os.unlink(tmp)
         return digest
@@ -58,6 +67,7 @@ class RunStore:
     def new(self, mode: str, question: dict) -> dict:
         run_id = uuid.uuid4().hex
         (self.root / "runs" / run_id).mkdir()
+        sync_directory(self.root / "runs")
         run = {
             "manifest_version": MANIFEST_VERSION,
             "parser_version": PARSER_VERSION,
@@ -84,6 +94,7 @@ class RunStore:
                 f.flush()
                 os.fsync(f.fileno())
             os.replace(tmp, directory / "manifest.json")
+            sync_directory(directory)
         finally:
             if os.path.exists(tmp):
                 os.unlink(tmp)

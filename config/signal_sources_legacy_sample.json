@@ -1,0 +1,37 @@
+{
+  "schema_version": "signal-registry-1",
+  "sources": [
+    {
+      "source_id": "vnexpress_health",
+      "organization": "VnExpress",
+      "kind": "rss",
+      "enabled": true,
+      "required": true,
+      "url": "https://vnexpress.net/rss/suc-khoe.rss",
+      "geography": "Vietnam",
+      "usage_policy": "RSS summary discovery with attribution; review source terms and HealthLab eligibility before redistributing. https://vnexpress.net/rss",
+      "max_documents": 10
+    },
+    {
+      "source_id": "pubmed_ageing",
+      "organization": "NCBI / PubMed",
+      "kind": "pubmed",
+      "enabled": true,
+      "required": true,
+      "query": "(Vietnam[Title/Abstract] OR Viet Nam[Title/Abstract]) AND (aging[Title/Abstract] OR ageing[Title/Abstract] OR elderly[Title/Abstract] OR older adults[Title/Abstract])",
+      "geography": "Study geography requires review",
+      "usage_policy": "Metadata and abstract only; retain PubMed attribution and original links. https://www.ncbi.nlm.nih.gov/About/disclaimer.html",
+      "max_documents": 5
+    },
+    {
+      "source_id": "vietnam_official_policy",
+      "organization": "Vietnam official policy source — selection pending",
+      "kind": "manual",
+      "enabled": false,
+      "required": false,
+      "geography": "Vietnam",
+      "usage_policy": "Connector and original document access pending; not part of automated source coverage yet.",
+      "max_documents": 5
+    }
+  ]
+}

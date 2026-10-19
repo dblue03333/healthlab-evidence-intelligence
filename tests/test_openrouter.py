@@ -30,6 +30,39 @@ def envelope(**changes):
     }
 
 
+def test_structured_request_keeps_the_pinned_route_and_audits_schema():
+    from healthlab.provider import schema_digest
+
+    seen, events = [], []
+    schema = {"type": "object", "properties": {}, "required": [], "additionalProperties": False}
+
+    def handler(request):
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, json=envelope())
+
+    p = OpenRouterProvider(settings(), client=httpx.Client(transport=httpx.MockTransport(handler)))
+    p.complete_json([], lambda e, b: events.append((e, b)), schema=schema)
+    assert seen[0]["response_format"]["json_schema"]["schema"] == schema
+    assert seen[0]["provider"] == p.identity()["routing"]
+    assert seen[0]["provider"]["require_parameters"] is True
+    assert seen[0]["provider"]["allow_fallbacks"] is False
+    assert events[0][0]["response_schema_sha256"] == schema_digest(schema)
+
+
+def test_interruption_is_audited_without_fallback_or_retry():
+    def handler(request):
+        raise KeyboardInterrupt()
+
+    events = []
+    provider = OpenRouterProvider(
+        settings(), client=httpx.Client(transport=httpx.MockTransport(handler))
+    )
+    with pytest.raises(KeyboardInterrupt):
+        provider.complete([], lambda e, b: events.append((e, b)))
+    assert len(events) == 1 and events[0][0]["error_code"] == "provider_interrupted"
+    assert events[0][1] is None
+
+
 def test_pinned_wire_identity_actual_metadata_cost_and_no_key_in_audit():
     events = []
     seen = []

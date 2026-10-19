@@ -1,0 +1,116 @@
+[
+  {
+    "file": "hcm_article.html.gz",
+    "source_url": "https://medinet.hochiminhcity.gov.vn/tin-tuc-su-kien/phuoc-thang-hoan-thanh-muc-tieu-kham-suc-khoe-toan-dan-dau-an-trach-nhiem-cua-n-c1780-76294.aspx",
+    "raw_sha256": "3e2787e40d6c7c1265864a440ae372a1e03d50ac8dad5fd1c795816966c75000",
+    "acquisition": "live_fetch_20261016_of_url_discovered_20261010",
+    "audit_id": "H26",
+    "purpose": "Parser regression only; article statements are not gold factual labels."
+  },
+  {
+    "file": "moh_video.html.gz",
+    "source_url": "https://vnpa.moh.gov.vn/toa-dam-cong-dong-chung-tay-cham-soc-tich-hop-nguoi-cao-tuoi-trong-xu-the-gia-hoa-dan-so/",
+    "raw_sha256": "2fd819e9a6fcb37b5bd49af431fa5a57414aac6a9e3f1b14c091cdc55383011e",
+    "acquisition": "saved_bootstrap_response_20261010",
+    "audit_id": "M01",
+    "purpose": "Parser regression only; article statements are not gold factual labels."
+  },
+  {
+    "file": "moh_image.html.gz",
+    "source_url": "https://vnpa.moh.gov.vn/thich-ung-voi-gia-hoa-dan-so/",
+    "raw_sha256": "bef6bb32d479055a3fb8ba1eb16d7054a9017593b65f9d271f45376630290067",
+    "acquisition": "live_fetch_20261016_of_url_discovered_20261010",
+    "audit_id": "M07",
+    "purpose": "Parser regression only; article statements are not gold factual labels."
+  },
+  {
+    "file": "moh_pdf.html.gz",
+    "source_url": "https://vnpa.moh.gov.vn/ban-tin-dan-so-phat-trien-so-4-06-nam-2025/",
+    "raw_sha256": "a9253781c7a0b2a33605ddaa4d8aa896b2f10e66e17865d8301c66d856daf74b",
+    "acquisition": "live_fetch_20261016_of_url_discovered_20261010",
+    "audit_id": "M40",
+    "purpose": "Parser regression only; article statements are not gold factual labels."
+  },
+  {
+    "file": "moh_broad_headline.html.gz",
+    "source_url": "https://vnpa.moh.gov.vn/ninh-binh-dong-bo-cac-giai-phap-nang-cao-chat-luong-cong-tac-dan-so-trong-tinh-hinh-moi/",
+    "raw_sha256": "6c538799caddbe252006762b5f6ab709084ae27af59b8cfb0902c058e7c96046",
+    "acquisition": "live_fetch_20261016_of_url_discovered_20261010",
+    "audit_id": "M36",
+    "purpose": "Parser regression only; article statements are not gold factual labels."
+  },
+  {
+    "file": "moh_navigation.html.gz",
+    "source_url": "https://vnpa.moh.gov.vn/gioi-thieu/",
+    "raw_sha256": "4fe0fa5c3c1f52109da18cda11ff2d1ec3976743b997f39d6474fae8055115ac",
+    "acquisition": "live_fetch_20261016_of_url_discovered_20261010",
+    "audit_id": "M10",
+    "purpose": "Parser regression only; article statements are not gold factual labels."
+  },
+  {
+    "file": "who_article.html.gz",
+    "source_url": "https://www.who.int/news/item/01-10-2026-un-decade-of-healthy-ageing-midpoint-report-finds-progress--calls-for-greater-investment",
+    "raw_sha256": "d42ec0a8fcf39b6f35a695a09516468c260a99003485cee30e0a57b8931e333f",
+    "acquisition": "saved_bootstrap_response_20261010",
+    "audit_id": "W01",
+    "purpose": "Parser regression only; article statements are not gold factual labels."
+  },
+  {
+    "file": "moh_listing.html.gz",
+    "source_url": "https://vnpa.moh.gov.vn/",
+    "raw_sha256": "2d419b992770becde665fc922b9a23b76fb04214df4fc75b21b4296208476ee6",
+    "acquisition": "saved_bootstrap_response_20261010",
+    "purpose": "Discovery regression for captured listing only, not current or full website coverage."
+  },
+  {
+    "file": "hcm_listing.html.gz",
+    "source_url": "https://medinet.hochiminhcity.gov.vn/tin-tuc-su-kien-c1780.aspx",
+    "raw_sha256": "5bca68ca32a20c32448602779ac8846482e6d6fb05a8cc0c5e7b1d8d8ce33851",
+    "acquisition": "saved_bootstrap_response_20261010",
+    "purpose": "Discovery regression for captured listing only, not current or full website coverage."
+  },
+  {
+    "file": "moh_discovery_home.html.gz",
+    "source_url": "https://vnpa.moh.gov.vn/",
+    "raw_sha256": "ed9d8c3c767e42060b266a9c1d0d00b630498adda430cad7284a6b836e663af4",
+    "acquisition": "live_collection_20261017",
+    "collection_run_id": "5cb0e9e9f6834d1a88b0616b1a582cc1",
+    "purpose": "Discovery/date binding regression only, not exhaustive coverage or factual labels."
+  },
+  {
+    "file": "moh_discovery_archive.html.gz",
+    "source_url": "https://vnpa.moh.gov.vn/danh-muc-tin-tuc/tin-hoat-dong/",
+    "raw_sha256": "cab8fe3189dcaf6223aa76b23ecbf4dc5e89dab6142a3c355329f45b628fd235",
+    "acquisition": "live_collection_20261017",
+    "collection_run_id": "5cb0e9e9f6834d1a88b0616b1a582cc1",
+    "purpose": "Discovery/date binding regression only, not exhaustive coverage or factual labels."
+  },
+  {
+    "file": "hcm_discovery_page2.html.gz",
+    "source_url": "https://medinet.hochiminhcity.gov.vn/tin-tuc-su-kien-c1780-p2.aspx",
+    "raw_sha256": "d349f477333631c0c7787644e1dfa346fe8b6cf5519d6399616268548cd0ced9",
+    "acquisition": "live_collection_20261017",
+    "collection_run_id": "5cb0e9e9f6834d1a88b0616b1a582cc1",
+    "purpose": "Discovery/date binding regression only, not exhaustive coverage or factual labels."
+  },
+  {
+    "file": "who_discovery_vietnam.html.gz",
+    "source_url": "https://www.who.int/vietnam/news",
+    "raw_sha256": "fa80b0130761f4dac8670375bc9beb3d7580566cb2169f4da19e38094eb34de5",
+    "acquisition": "live_collection_20261017",
+    "collection_run_id": "5cb0e9e9f6834d1a88b0616b1a582cc1",
+    "purpose": "Discovery/date binding regression only, not exhaustive coverage or factual labels."
+  },
+  {
+    "file": "moh_window_api.json.gz",
+    "source_url": "https://vnpa.moh.gov.vn/wp-json/wp/v2/posts?after=2026-10-11T23%3A59%3A59&before=2026-10-17T00%3A00%3A00&per_page=50&orderby=date&order=asc&status=publish&_fields=id%2Cdate%2Cdate_gmt%2Clink%2Ctitle&page=1",
+    "raw_sha256": "24752874b791fb6e63a6a92b4f693988f2d8812babb91fa62cba9506edb40584",
+    "response_headers": {
+      "x-wp-total": "22",
+      "x-wp-totalpages": "1"
+    },
+    "collection_run_id": "38763e5620604beaa6ab8822b9f73b70",
+    "acquisition": "live_20261017_public_posts_api",
+    "purpose": "Publication-window discovery contract only; not gold editorial or factual labels."
+  }
+]

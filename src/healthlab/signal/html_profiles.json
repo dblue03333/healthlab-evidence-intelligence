@@ -1,0 +1,102 @@
+{
+  "moh_population": {
+    "rule_id": "moh_population",
+    "host": "vnpa.moh.gov.vn",
+    "article_urls": {
+      "include_path_patterns": [
+        "/[^/]+/"
+      ],
+      "exclude_paths": [
+        "/chuc-nang-nhiem-vu/",
+        "/co-cau-to-chuc/",
+        "/gioi-thieu/",
+        "/he-thong-van-ban/",
+        "/lanh-dao-cuc-dan-so/",
+        "/lanh-dao-duong-nhiem/",
+        "/lich-su-phat-trien/",
+        "/so-lieu-thong-ke/",
+        "/tai-lieu-chuyen-mon/",
+        "/thong-tin-lien-he/",
+        "/tin-tuc-su-kien/"
+      ]
+    },
+    "body": {
+      "classes": [
+        "single-page"
+      ]
+    }
+  },
+  "hcm_medinet": {
+    "rule_id": "hcm_medinet",
+    "host": "medinet.hochiminhcity.gov.vn",
+    "article_urls": {
+      "include_path_patterns": [
+        ".*-c\\d+-\\d+\\.[aA][sS][pP][xX]"
+      ]
+    },
+    "body": {
+      "classes": [
+        "ContentODM"
+      ]
+    },
+    "article_scope": {
+      "classes": [
+        "contentNew"
+      ]
+    },
+    "require_article_scope": false,
+    "lead": {
+      "classes": [
+        "sapodetail"
+      ]
+    },
+    "text_dates": [
+      {
+        "selector": {
+          "tag": "div",
+          "classes": [
+            "time"
+          ]
+        },
+        "kind": "modified",
+        "scope": "article_children",
+        "format": "%d/%m/%Y",
+        "pattern": "Cập nhật:\\s*\\d{1,2}:\\d{1,2},\\s*(?P<date>\\d{1,2}/\\d{1,2}/\\d{4})(?:\\s.*)?"
+      }
+    ],
+    "listing_date": {
+      "selector": {
+        "classes": [
+          "time"
+        ]
+      }
+    }
+  },
+  "who_news": {
+    "rule_id": "who_news",
+    "host": "www.who.int",
+    "article_urls": {
+      "include_path_patterns": [
+        "/news/item/.*"
+      ]
+    },
+    "body": {
+      "classes": [
+        "sf-detail-body-wrapper"
+      ]
+    },
+    "text_dates": [
+      {
+        "selector": {
+          "classes": [
+            "timestamp"
+          ]
+        },
+        "kind": "published",
+        "scope": "document",
+        "format": "%d %B %Y",
+        "fallback_only": true
+      }
+    ]
+  }
+}

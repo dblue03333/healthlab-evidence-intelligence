@@ -5,7 +5,7 @@ import json
 import httpx
 
 from healthlab.models import IngestionError
-from healthlab.provider import Completion
+from healthlab.provider import Completion, json_schema_format, schema_digest
 from healthlab.pubmed import utc_now
 
 BASE_URL = "https://openrouter.ai/api/v1"
@@ -41,6 +41,18 @@ class OpenRouterProvider:
             self.client.close()
 
     def complete(self, messages, audit):
+        return self._complete(messages, audit)
+
+    def complete_json(self, messages, audit, *, schema):
+        return self._complete(messages, audit, response_format=json_schema_format(schema))
+
+    def complete_json_object(self, messages, audit, *, schema):
+        json_schema_format(schema)
+        return self._complete(
+            messages, audit, response_format={"type": "json_object"}, contract=schema
+        )
+
+    def _complete(self, messages, audit, *, response_format=None, contract=None):
         if self.cache_only:
             raise IngestionError("cache_miss", "OpenRouter cache-only mode never calls network")
         self.settings.validate_online()
@@ -56,19 +68,32 @@ class OpenRouterProvider:
             "requested_model": self.settings.model,
             "requested_provider": self.settings.provider_slug,
         }
+        payload = {
+            "model": self.settings.model,
+            "messages": messages,
+            "temperature": 0.0,
+            "max_tokens": self.settings.max_tokens,
+            "stream": False,
+            "provider": self.identity()["routing"],
+        }
+        if response_format is not None:
+            payload["response_format"] = response_format
+            event.update(
+                response_format=response_format["type"],
+                response_schema_sha256=schema_digest(
+                    contract if contract is not None else response_format["json_schema"]["schema"]
+                ),
+            )
         try:
             response = self.client.post(
                 BASE_URL + "/chat/completions",
                 headers={"Authorization": f"Bearer {key}"},
-                json={
-                    "model": self.settings.model,
-                    "messages": messages,
-                    "temperature": 0.0,
-                    "max_tokens": self.settings.max_tokens,
-                    "stream": False,
-                    "provider": self.identity()["routing"],
-                },
+                json=payload,
             )
+        except (KeyboardInterrupt, SystemExit):
+            event.update(error_code="provider_interrupted", finished_at=utc_now())
+            audit(event, None)
+            raise
         except httpx.TransportError as exc:
             code = (
                 "provider_timeout"

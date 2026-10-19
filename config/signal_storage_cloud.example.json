@@ -1,0 +1,7 @@
+{
+  "backend": "gcs_postgres",
+  "bucket": "replace-with-private-bucket",
+  "prefix": "healthlab/signal",
+  "namespace": "signal",
+  "database_url_env": "HEALTHLAB_SIGNAL_DATABASE_URL"
+}

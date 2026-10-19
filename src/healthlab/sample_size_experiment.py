@@ -25,7 +25,7 @@ from healthlab.pipeline import audit_writer, finish
 from healthlab.provider import FPTProvider
 from healthlab.store import RunStore, json_bytes
 
-CANDIDATE_VERSION = "paper-extract-1-sample-entity-experiment-1"
+CANDIDATE_VERSION = PROMPT_VERSION + "-sample-entity-experiment-1"
 SAMPLE_RULE = (
     "Sample-size entity rule: sample_sizes counts HUMAN study participants only. "
     "Never put counts of articles, papers, studies, trials, recommendations, statements, "
@@ -94,7 +94,7 @@ def inspect_samples(evidence, document, snapshot_id, case):
     )
     quote_error = None
     try:
-        verify_passages(sample_only, document, snapshot_id)
+        verify_passages(sample_only, document, snapshot_id, validator_version="passage-1")
     except IngestionError as exc:
         quote_error = {"code": exc.code, "message": str(exc)}
     return {

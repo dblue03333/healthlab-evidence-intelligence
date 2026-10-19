@@ -26,6 +26,7 @@ def contract(provider):
         "pubmed",
         "pipeline",
         "evidence",
+        "sample_policy",
         "extraction",
         "brief",
         "claim_context",

@@ -1,0 +1,70 @@
+{
+  "schema_version": "signal-registry-3",
+  "sources": [
+    {
+      "source_id": "new_source",
+      "organization": "Synthetic bulletin — configuration example",
+      "kind": "html",
+      "enabled": false,
+      "required": false,
+      "url": "https://bulletin.example.org/news",
+      "usage_policy": "Synthetic example only. Verify a real endpoint and fixtures before enabling.",
+      "max_article_fetches": 100,
+      "html_rules": {
+        "rule_id": "new_source",
+        "host": "bulletin.example.org",
+        "article_urls": {
+          "include_path_patterns": [
+            "/articles/[^/]+",
+            "/article\\.aspx"
+          ],
+          "exclude_paths": [
+            "/articles/about"
+          ],
+          "exclude_path_patterns": [
+            "/articles/category-.*"
+          ],
+          "drop_query_parameters": [
+            "utm_source"
+          ]
+        },
+        "body": {
+          "tag": "section",
+          "attributes": {
+            "id": "article-body"
+          }
+        },
+        "article_scope": {
+          "tag": "article"
+        },
+        "lead": {
+          "classes": [
+            "intro"
+          ]
+        },
+        "text_dates": [
+          {
+            "selector": {
+              "tag": "time",
+              "attributes": {
+                "data-kind": "published"
+              }
+            },
+            "kind": "published",
+            "attribute": "datetime"
+          },
+          {
+            "selector": {
+              "tag": "time",
+              "attributes": {
+                "data-kind": "updated"
+              }
+            },
+            "kind": "modified",
+            "attribute": "datetime"
+          }
+        ]
+      }
+    }
+  ]
+}

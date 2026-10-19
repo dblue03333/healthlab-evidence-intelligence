@@ -164,3 +164,26 @@ def test_model_change_requires_new_baseline_directory(tmp_path):
     different.identity = lambda: {"model": "other"}
     with pytest.raises(IngestionError, match="new destination"):
         run_baseline(store, frozen, tmp_path / "baseline", different)
+
+
+def test_fresh_baseline_bypasses_existing_cache(tmp_path):
+    store, frozen = setup(tmp_path)
+    run_baseline(
+        store,
+        frozen,
+        tmp_path / "cached",
+        FakeProvider([completion(), second_completion(), empty_brief()]),
+    )
+    fresh = run_baseline(
+        store,
+        frozen,
+        tmp_path / "fresh",
+        FakeProvider([completion(), second_completion(), empty_brief()]),
+        refresh=True,
+    )
+    stage = fresh["cases"][0]["stages"]["extraction"]
+    assert stage["cache_hits"] == 0
+    assert stage["api_calls"] == 2
+    assert fresh["cases"][0]["status"] == "completed"
+    with pytest.raises(IngestionError, match="changed"):
+        run_baseline(store, frozen, tmp_path / "fresh", FakeProvider([]))
