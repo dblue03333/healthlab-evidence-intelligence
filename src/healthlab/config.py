@@ -53,7 +53,7 @@ class FPTSettings(BaseSettings):
     )
     model: str = Field(default="DeepSeek-V4-Flash", validation_alias="FPT_MODEL_NAME", min_length=1)
     timeout: float = Field(default=60, gt=0, le=120, validation_alias="FPT_TIMEOUT")
-    max_tokens: int = Field(default=4096, ge=256, le=16384, validation_alias="FPT_MAX_TOKENS")
+    max_tokens: int = Field(default=8192, ge=256, le=16384, validation_alias="FPT_MAX_TOKENS")
 
     def validate_online(self):
         from urllib.parse import urlsplit

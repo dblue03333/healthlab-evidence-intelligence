@@ -13,6 +13,12 @@ updating an existing installation. No provider fallback or account change occurs
 The model was observed in `/v1/models`; published FPT prices are documented on
 [the FPT pricing page](https://factory.fpt.ai/pricing). Lower token prices do not
 guarantee a cheaper run: reasoning/output volume, cache usage and failures matter.
+The default `FPT_MAX_TOKENS` is now `8192`, including reasoning tokens. Update this
+value in an existing `.env` as well. At 4096, three saved triage attempts exhausted
+the cap with no JSON content; fresh attempts at 8192 produced valid proposals.
+This is a bounded mitigation, not a guarantee: longer reasoning can still exhaust
+8192. Incomplete responses stay failed, retain their audit and are never retried
+automatically or treated as editorial decisions.
 
 For **new Signal CLI inference**, `triage propose` defaults to prompt v11 and
 `draft` defaults to evidence-linked draft v3. V11 requires literal status evidence

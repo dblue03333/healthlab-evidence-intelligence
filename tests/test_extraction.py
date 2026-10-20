@@ -246,7 +246,7 @@ def test_fpt_wire_contract_and_recorded_actual_model():
     )
     assert seen[0].headers["Authorization"] == "Bearer fpt-test-secret"
     payload = json.loads(seen[0].content)
-    assert payload["model"] == "fixture-model" and payload["max_tokens"] == 4096
+    assert payload["model"] == "fixture-model" and payload["max_tokens"] == 8192
     assert "response_format" not in payload
     assert result.actual_model == "actual-model-version" and result.usage["total_tokens"] == 20
     assert "secret" not in json.dumps(provider.identity())
