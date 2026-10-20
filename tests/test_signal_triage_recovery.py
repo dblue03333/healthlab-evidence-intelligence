@@ -1,6 +1,7 @@
 """Recovery across real manifest reloads, with mock providers and a fake clock."""
 
 import copy
+import json
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -199,6 +200,24 @@ def test_invalid_model_output_remains_blocked_without_repair(tmp_path, clock):
     first = run(store, triage, FakeProvider([Completion("not JSON", "fake-test", "stop", {})]))
     assert first["recovery"]["pause"]["kind"] == "invalid_output_or_contract"
     assert not load_triage(store, triage["run_id"])["decisions"]
+    assert run(store, triage, FakeProvider([]))["model_calls"] == 0
+
+
+@pytest.mark.parametrize("content", ["", '{"decision":"exclude"}'])
+def test_token_limit_is_distinct_preserves_usage_and_never_auto_retries(tmp_path, clock, content):
+    store, _, _, triage = case(tmp_path)
+    usage = {"completion_tokens": 8192, "completion_tokens_details": {"reasoning_tokens": 8192}}
+    provider = FakeProvider([Completion(content, "fake-test", "length", usage)])
+    result = run(store, triage, provider)
+    attempt = result["model_attempts"][0]
+    assert attempt["error_code"] == "triage_output_token_limit"
+    assert result["recovery"]["state"] == "blocked"
+    assert result["recovery"]["pause"] == {"kind": "output_token_limit", "retryable": False}
+    assert result["recovery"]["total_calls"] == provider.calls == 1
+    view = load_triage(store, triage["run_id"])
+    assert not view["decisions"]
+    response = json.loads(store.read(attempt["steps"][0]["model_response_sha256"]))
+    assert response["content"] == content and response["usage"] == usage
     assert run(store, triage, FakeProvider([]))["model_calls"] == 0
 
 

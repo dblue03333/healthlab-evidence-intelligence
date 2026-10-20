@@ -7,7 +7,12 @@ import pytest
 from healthlab.provider import Completion, FakeProvider
 from healthlab.signal import draft_v3
 from healthlab.signal.newsletter import draft_issue, load_issue, revise
-from healthlab.signal.triage import load_triage, propose_triage, resolve_model_decision
+from healthlab.signal.triage import (
+    load_triage,
+    propose_triage,
+    resolve_model_decision,
+    triage_packet,
+)
 from healthlab.signal.triage_v5 import source_passages
 from healthlab.store import json_bytes
 from tests.test_signal_triage_v5 import case, compact, proposal
@@ -67,6 +72,31 @@ def test_v11_does_not_rewrite_v6_or_promote_pilot_to_routine_operation(tmp_path)
     )
     assert old.reported_status == "operational" and old.decision == "include"
     assert new.reported_status == "unknown" and new.decision == "needs_review"
+
+
+@pytest.mark.parametrize("date,check_date", [("2026-10-08", False), ("2025-01-02", True)])
+def test_v11_review_queue_retains_selected_date_and_independent_origin_hold(
+    tmp_path, date, check_date
+):
+    store, collection, doc, triage = case(
+        tmp_path, f"On {date}, Vietnam opened a pilot older-person care centre."
+    )
+    sid = collection["documents"][0]["snapshot_id"]
+    value = compact(proposal(doc, sid, reported_status="pilot", source_role="repost"))
+    provider = FakeProvider([Completion(json.dumps(value), "fake-test", "stop", {})])
+    propose_triage(
+        store,
+        triage["run_id"],
+        provider,
+        expected_head=None,
+        prompt_version="signal-triage-prompt-11",
+    )
+    packet = triage_packet(store, triage["run_id"])
+    assert packet["counts"]["needs_review"] == 1 and packet["counts"]["include"] == 0
+    row = packet["verification_queue"][0]
+    assert row["selected_event_evidence"]["date"] == date
+    assert row["check_development_date"] is check_date
+    assert row["check_original_article"] and not row["automatic_include"]
 
 
 def test_new_draft_supplies_window_and_reviewed_quotes_without_truncating(pilot):

@@ -422,6 +422,11 @@ def _call(
     )
     step["model_response_sha256"] = storage.put(json_bytes(response))
     storage.save(run)
+    if result.finish_reason == "length":
+        raise IngestionError(
+            "triage_output_token_limit",
+            "Model exhausted its output token budget; no editorial decision was produced",
+        )
     if result.finish_reason != "stop":
         raise ValueError("Incomplete model response")
     if recovery and result.actual_model != provider.identity()["model"]:

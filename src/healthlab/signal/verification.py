@@ -174,6 +174,7 @@ def verification_requirements(store, view):
             "signal-triage-prompt-8",
             "signal-triage-prompt-9",
             "signal-triage-prompt-10",
+            "signal-triage-prompt-11",
         }:
             from healthlab.evidence import decode_model_json
 

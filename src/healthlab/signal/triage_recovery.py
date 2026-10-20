@@ -221,6 +221,8 @@ class Recovery:
         failure = (call or {}).get("failure")
         if call and call["status"] in {"started", "unknown_outcome"}:
             failure = dict(kind="unknown_outcome", retryable=False)
+        if not failure and getattr(exc, "code", None) == "triage_output_token_limit":
+            failure = dict(kind="output_token_limit", retryable=False)
         if not failure:
             failure = dict(kind="invalid_output_or_contract", retryable=False)
         failure = dict(failure)

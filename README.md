@@ -19,6 +19,16 @@ the cap with no JSON content; fresh attempts at 8192 produced valid proposals.
 This is a bounded mitigation, not a guarantee: longer reasoning can still exhaust
 8192. Incomplete responses stay failed, retain their audit and are never retried
 automatically or treated as editorial decisions.
+New triage attempts report an exhausted output cap as
+`triage_output_token_limit` (managed recovery: `output_token_limit`) rather than
+invalid JSON. The response and usage remain saved, no decision is created, and
+the run stops without retrying. A diagnostic with a different cap needs a fresh
+run because managed inference pins its settings and runtime. A later successful
+response does not prove the larger cap was necessary or remove the old failure.
+
+The review queue also reads v11's selected event-date evidence. A supported date
+in the monitoring window clears that date check while an unresolved original
+source still holds the article; an out-of-window date remains flagged.
 
 For **new Signal CLI inference**, `triage propose` defaults to prompt v11 and
 `draft` defaults to evidence-linked draft v3. V11 requires literal status evidence
