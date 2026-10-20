@@ -121,8 +121,10 @@ def main(argv=None):
             "signal-triage-prompt-8",
             "signal-triage-prompt-9",
             "signal-triage-prompt-10",
+            "signal-triage-prompt-11",
         ],
-        help="Explicit opt-in contract; defaults to the stable runtime version",
+        default="signal-triage-prompt-11",
+        help="Contract for new inference; v11 checks pilot/routine status evidence",
     )
     revalidate = triage_commands.add_parser(
         "revalidate", help="Recheck saved invalid output; no API call"
@@ -156,6 +158,18 @@ def main(argv=None):
         "--structured-output",
         action="store_true",
         help="Request native JSON schema; no text fallback",
+    )
+    draft.add_argument(
+        "--evidence-output",
+        action="store_true",
+        default=True,
+        help="Use fact/evidence contract with absolute reporting dates (default)",
+    )
+    draft.add_argument(
+        "--legacy-output",
+        dest="evidence_output",
+        action="store_false",
+        help="Explicit legacy draft-v2 compatibility",
     )
     draft.add_argument("--max-documents", type=int, default=6)
     draft.add_argument("--triage-run", required=True)
@@ -356,6 +370,7 @@ def main(argv=None):
                     triage_id=args.triage_run,
                     max_documents=args.max_documents,
                     structured_output=args.structured_output,
+                    evidence_output=args.evidence_output,
                 )
                 result = {k: run.get(k) for k in ("run_id", "status", "issue_sha256", "errors")}
             finally:

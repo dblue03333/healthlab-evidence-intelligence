@@ -5,6 +5,51 @@ Credentials, run stores, internal plans and evaluation reports stay local under
 `.env`, `outputs/`, `local_docs/` and `docs/`; local report paths below are not
 part of the GitHub checkout.
 
+## Current Signal defaults — 20 October 2026
+
+FPT now uses the exact inventory ID `DeepSeek-V4-Flash` on the existing FPT
+endpoint. Set `FPT_MODEL_NAME=DeepSeek-V4-Flash` in your ignored `.env` when
+updating an existing installation. No provider fallback or account change occurs.
+The model was observed in `/v1/models`; published FPT prices are documented on
+[the FPT pricing page](https://factory.fpt.ai/pricing). Lower token prices do not
+guarantee a cheaper run: reasoning/output volume, cache usage and failures matter.
+
+For **new Signal CLI inference**, `triage propose` defaults to prompt v11 and
+`draft` defaults to evidence-linked draft v3. V11 requires literal status evidence
+for a pilot or routine service; an unsupported operational include is held for
+review. These are conservative lexical checks, not semantic verification. New
+drafts contain narrow facts with reviewed evidence IDs, an absolute reporting
+period and code-derived overview/source titles. English and Vietnamese are both
+accepted. Preview/review packets expose each fact and its exact source evidence.
+Quote identity and reference validation do not certify that a fact is entailed;
+editorial review must still check interpretation and uncertainty wording.
+
+```bash
+uv run python -m healthlab.signal triage prepare COLLECTION_RUN_ID
+uv run python -m healthlab.signal triage propose NEW_TRIAGE_RUN_ID \
+  --provider fpt --expected-head none --max-documents 1 --max-model-calls 1
+uv run python -m healthlab.signal draft COLLECTION_RUN_ID \
+  --triage-run NEW_TRIAGE_RUN_ID --provider fpt --max-documents 1
+```
+
+Recorded v6/v2 artifacts remain readable. Explicit `--prompt-version
+signal-triage-prompt-6` and draft `--legacy-output` retain the old contracts when
+needed. Python API defaults retain legacy compatibility; new code can select v11
+and `draft_issue(..., evidence_output=True)` explicitly. Changing prompt/runtime
+or model identity requires fresh managed runs; old evaluation runners are pinned
+to their measured code and must not be reused silently.
+
+A v3 `revise` file uses the `EvidenceDraft` shape: `signals` with `snapshot_id`,
+`facts` (each `text` and `evidence_ids`), `interpretation` and `uncertainty`.
+Revisions update the derived draft/evidence version together and reset approval;
+the original model response is retained. Legacy v2 revisions still use `Draft`.
+
+The 20 October local smoke used one known historical Long Bien positive, with
+one triage and one draft call per model: both GPT-OSS and Flash returned 2/2 HTTP
+200 and selected **pilot**. This is not a held-out quality benchmark. T1 human
+approval/inbox acceptance and T2 full issue/delivery persistence remain pending.
+The dated reports and earlier default descriptions below are historical.
+
 ## Signal triage recovery — 19 October 2026
 
 Opt-in `triage propose --resumable --total-call-budget N` pins a **new** triage

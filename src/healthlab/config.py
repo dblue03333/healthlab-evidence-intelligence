@@ -51,7 +51,7 @@ class FPTSettings(BaseSettings):
     base_url: str = Field(
         default="https://mkp-api.fptcloud.com/v1", validation_alias="FPT_BASE_URL"
     )
-    model: str = Field(default="gpt-oss-120b", validation_alias="FPT_MODEL_NAME", min_length=1)
+    model: str = Field(default="DeepSeek-V4-Flash", validation_alias="FPT_MODEL_NAME", min_length=1)
     timeout: float = Field(default=60, gt=0, le=120, validation_alias="FPT_TIMEOUT")
     max_tokens: int = Field(default=4096, ge=256, le=16384, validation_alias="FPT_MAX_TOKENS")
 

@@ -35,6 +35,7 @@ SUPPORTED_PROMPTS = {
     "signal-triage-prompt-8",
     "signal-triage-prompt-9",
     "signal-triage-prompt-10",
+    "signal-triage-prompt-11",
     TRIAGE_PROMPT_VERSION,
 }
 RUBRIC_V1 = {
@@ -284,6 +285,7 @@ def resolve_model_decision(content, document, *, prompt_version, monitoring_wind
         "signal-triage-prompt-8",
         "signal-triage-prompt-9",
         "signal-triage-prompt-10",
+        "signal-triage-prompt-11",
     }:
         from healthlab.signal.triage_v5 import resolve
 
@@ -532,6 +534,7 @@ def load_triage(store, triage_id, *, head="latest"):
                 "signal-triage-prompt-8",
                 "signal-triage-prompt-9",
                 "signal-triage-prompt-10",
+                "signal-triage-prompt-11",
             }:
                 from healthlab.signal.triage_v5 import validate_trace
 
@@ -744,6 +747,7 @@ def _append_model_proposal(storage, view, attempt, response, decision, prompt_ve
         "signal-triage-prompt-8",
         "signal-triage-prompt-9",
         "signal-triage-prompt-10",
+        "signal-triage-prompt-11",
     }:
         event["coverage_sha256"] = attempt["coverage_sha256"]
     run["head"] = storage.put(json_bytes(event))
@@ -833,6 +837,7 @@ def propose_triage(
         "signal-triage-prompt-8",
         "signal-triage-prompt-9",
         "signal-triage-prompt-10",
+        "signal-triage-prompt-11",
     }:
         raise ValueError("New inference only supports modern prompt contracts")
     if total_call_budget is not None and not resumable:
@@ -846,6 +851,7 @@ def propose_triage(
         "signal-triage-prompt-8",
         "signal-triage-prompt-9",
         "signal-triage-prompt-10",
+        "signal-triage-prompt-11",
     }:
         from healthlab.signal.triage_v5 import propose
 

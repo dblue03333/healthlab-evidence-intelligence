@@ -137,6 +137,10 @@ def date_candidates(document):
 
 
 def _parse_proposal(content, document, window, version):
+    if version == "signal-triage-prompt-11":
+        from healthlab.signal.triage_v11 import canonical
+
+        return canonical(content, document, window)
     if version == "signal-triage-prompt-10":
         from healthlab.signal.triage_v10 import canonical
 
@@ -277,7 +281,12 @@ def _prompt(view, doc, units, stage, *, notes=None, version=VERSION):
     dates = [d for d in date_candidates(doc) if d["passage_id"] in {u["passage_id"] for u in units}]
     schema = ChunkEvidence if stage == "chunk" else Proposal
     rules = _RULES
-    if version == "signal-triage-prompt-6":
+    if version == "signal-triage-prompt-11":
+        from healthlab.signal.triage_v11 import INSTRUCTIONS, CompactProposal
+
+        schema = ChunkEvidence if stage == "chunk" else CompactProposal
+        rules = INSTRUCTIONS
+    elif version == "signal-triage-prompt-6":
         from healthlab.signal.triage_v6 import INSTRUCTIONS, CompactProposal
 
         schema = ChunkEvidence if stage == "chunk" else CompactProposal
@@ -325,6 +334,7 @@ def _prompt(view, doc, units, stage, *, notes=None, version=VERSION):
         "signal-triage-prompt-8",
         "signal-triage-prompt-9",
         "signal-triage-prompt-10",
+        "signal-triage-prompt-11",
     }:
         data["contract_version"] = version
     if version == "signal-triage-prompt-10":

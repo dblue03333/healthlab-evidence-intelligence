@@ -13,6 +13,7 @@ from healthlab.evidence import decode_model_json
 from healthlab.models import IngestionError
 from healthlab.pipeline import audit_writer
 from healthlab.pubmed import utc_now
+from healthlab.signal import draft_v3
 from healthlab.signal.collection import load_documents, pilot_lock
 from healthlab.signal.contracts import Draft
 from healthlab.signal.triage import draft_selection
@@ -95,7 +96,14 @@ def messages(documents, decisions, provenance=None):
 
 
 def draft_issue(
-    store, collection_id, provider=None, *, triage_id=None, max_documents=6, structured_output=False
+    store,
+    collection_id,
+    provider=None,
+    *,
+    triage_id=None,
+    max_documents=6,
+    structured_output=False,
+    evidence_output=False,
 ):
     if not 1 <= max_documents <= 10:
         raise ValueError("max_documents must be between 1 and 10")
@@ -121,7 +129,7 @@ def draft_issue(
     run = store.new("signal_issue", triage["inputs"]["monitoring_window"])
     run.update(
         collection_run_id=collection_id,
-        prompt_version=PROMPT_VERSION,
+        prompt_version=draft_v3.VERSION if evidence_output else PROMPT_VERSION,
         provider=provider.identity()
         if provider is not None
         else {"provider": "not_called_empty_selection"},
@@ -143,11 +151,15 @@ def draft_issue(
     store.save(run)
     try:
         if selected:
-            prompts = messages(selected, decisions, triage["decision_provenance"])
+            prompts = (
+                draft_v3.messages(selected, decisions, run["question"])
+                if evidence_output
+                else messages(selected, decisions, triage["decision_provenance"])
+            )
             run["input_sha256"] = store.put(json_bytes(prompts))
             store.save(run)
             if structured_output:
-                schema = Draft.model_json_schema()
+                schema = (draft_v3.EvidenceDraft if evidence_output else Draft).model_json_schema()
                 run["response_schema_sha256"] = store.put(json_bytes(schema))
                 store.save(run)
                 completion = provider.complete_json(
@@ -158,7 +170,22 @@ def draft_issue(
             run.update(actual_model=completion.actual_model, usage=completion.usage)
             if completion.finish_reason != "stop":
                 raise IngestionError("signal_incomplete", "Model did not finish the newsletter")
-            draft = Draft.model_validate(decode_model_json(completion.content))
+            payload = decode_model_json(completion.content)
+            if evidence_output:
+                run["model_response_sha256"] = store.put(
+                    json_bytes(
+                        dict(
+                            content=completion.content,
+                            actual_model=completion.actual_model,
+                            finish_reason=completion.finish_reason,
+                            usage=completion.usage,
+                        )
+                    )
+                )
+                run["evidence_draft_sha256"] = store.put(json_bytes(payload))
+                draft = draft_v3.canonical(payload, selected, decisions, run["question"])
+            else:
+                draft = Draft.model_validate(payload)
         else:
             draft = Draft(
                 overview="Chưa có tài liệu đủ điều kiện theo rubric hiện tại để đưa vào bản nháp trong kỳ này.",
@@ -196,9 +223,14 @@ def load_issue(store, issue_id):
     selected = {key: all_documents[key] for key in run["selected_snapshot_ids"]}
     draft = Draft.model_validate_json(store.read(run["issue_sha256"]))
     triage = issue_triage(store, run, require_current=False) if run.get("triage_run_id") else None
-    if run.get("prompt_version") == PROMPT_VERSION and triage is None:
+    if run.get("prompt_version") in {PROMPT_VERSION, draft_v3.VERSION} and triage is None:
         raise ValueError("Issue is missing its triage gate")
     verify_draft(draft, selected, triage["decisions"] if triage else None)
+    if run.get("prompt_version") == draft_v3.VERSION and selected:
+        payload = json.loads(store.read(run["evidence_draft_sha256"]))
+        expected = draft_v3.canonical(payload, selected, triage["decisions"], run["question"])
+        if expected != draft:
+            raise ValueError("Draft differs from evidence-linked facts")
     return run, draft, selected
 
 
@@ -228,7 +260,11 @@ def revise(store, issue_id, content, *, expected_version):
         if expected_version != run["issue_sha256"]:
             raise ValueError("Stale issue version; reload before editing")
         triage = issue_triage(store, run)
-        draft = verify_draft(Draft.model_validate(content), documents, triage["decisions"])
+        if run.get("prompt_version") == draft_v3.VERSION:
+            draft = draft_v3.canonical(content, documents, triage["decisions"], run["question"])
+            run["evidence_draft_sha256"] = store.put(json_bytes(content))
+        else:
+            draft = verify_draft(Draft.model_validate(content), documents, triage["decisions"])
         previous = run["issue_sha256"]
         run["issue_sha256"] = store.put(json_bytes(draft.model_dump()))
         run.setdefault("revisions", []).append(
@@ -358,12 +394,33 @@ def render_preview(store, issue_id):
     triage = issue_triage(store, run, require_current=False) if run.get("triage_run_id") else None
     text, markup = render(run, draft, documents, decisions=triage["decisions"] if triage else None)
     directory = store.root / "runs" / issue_id
+    if run.get("evidence_draft_sha256"):
+        payload = json.loads(store.read(run["evidence_draft_sha256"]))
+        evidence_markup = "<section><h2>Claim evidence — requires editorial review</h2>"
+        for item in payload["signals"]:
+            units = {
+                e["evidence_id"]: e
+                for e in draft_v3.evidence_units(
+                    documents[item["snapshot_id"]], triage["decisions"][item["snapshot_id"]]
+                )
+            }
+            for fact in item["facts"]:
+                evidence_markup += "<p>" + html.escape(fact["text"]) + "</p>"
+                for eid in fact["evidence_ids"]:
+                    evidence_markup += (
+                        "<blockquote>" + html.escape(units[eid]["quote"]) + "</blockquote>"
+                    )
+        evidence_markup += "</section>"
+        markup = markup.replace("</body></html>", evidence_markup + "</body></html>")
     write_preview(directory / "newsletter.txt", text)
     write_preview(directory / "newsletter.html", markup)
     # Evidence stays in the review packet, not long excerpts redistributed by email.
     packet = {
         "issue_sha256": run["issue_sha256"],
         "draft": draft.model_dump(),
+        "claim_evidence": json.loads(store.read(run["evidence_draft_sha256"]))
+        if run.get("evidence_draft_sha256")
+        else None,
         "checks": run["checks"],
         "triage": {
             k: run.get(k)
