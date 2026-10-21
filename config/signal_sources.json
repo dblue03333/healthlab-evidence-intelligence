@@ -43,7 +43,8 @@
         "wordpress_api_url": "https://vnpa.moh.gov.vn/wp-json/wp/v2/posts",
         "api_page_size": 50,
         "max_listing_pages": 6
-      }
+      },
+      "html_media_policy": "text_only"
     },
     {
       "source_id": "hcm_health",
@@ -116,7 +117,8 @@
         "sequential_page_pattern": "/tin-tuc-su-kien-c1780(?:-p(?P<page>\\d+))?\\.aspx",
         "stop_before_window": true,
         "skip_outside_window": true
-      }
+      },
+      "html_media_policy": "text_only"
     },
     {
       "source_id": "who_ageing",
@@ -191,7 +193,8 @@
         "stop_before_window": true,
         "skip_outside_window": true
       },
-      "html_max_response_bytes": 4000000
+      "html_max_response_bytes": 4000000,
+      "html_media_policy": "text_only"
     }
   ]
 }

@@ -11,9 +11,10 @@ import pytest
 
 from healthlab.signal.collection import collect, load_documents
 from healthlab.signal.contracts import Registry
-from healthlab.signal.html_sources import article_url, parse_article
+from healthlab.signal.html_adapter import PARSER_VERSION
+from healthlab.signal.html_sources import article_url, checkpoint_identity, parse_article
 from healthlab.signal.source_probe import ProbeTarget, page_inventory
-from healthlab.store import RunStore
+from healthlab.store import RunStore, json_bytes
 from tests.test_signal_html_sources import TEXT, article, source
 
 FIXTURES = Path(__file__).parent / "fixtures" / "signal_html"
@@ -193,6 +194,90 @@ def test_media_in_window_is_persisted_and_blocks_required_source(tmp_path):
     assert packet["raw_sha256"] == item["raw_sha256"]
     assert packet["publication_date"] == "2026-10-10"
     assert packet["media"]
+
+
+@pytest.mark.parametrize("name", ["moh_video", "moh_image"])
+def test_text_only_scope_excludes_media_without_claiming_it_was_read(tmp_path, name):
+    raw, _ = captured(name)
+    config = source("moh_population").model_copy(update={"html_media_policy": "text_only"})
+    routes = {"/": b'<a href="/media/">Fixture</a>', "/media/": raw}
+    store, run, requests = collect_routes(tmp_path, routes, config)
+    check = run["source_checks"][0]
+    assert run["status"] == "completed" and check["coverage_complete"]
+    assert not run["documents"] and not check["item_errors"]
+    item = check["article_checks"][0]
+    assert item["status"] == "excluded_media"
+    assert item["content_coverage"] == "excluded_by_text_only_policy"
+    assert check["counts"]["excluded_media"] == 1
+    assert store.read(item["raw_sha256"]) == raw
+    assert len(requests) == 2  # No image, video or transcript request.
+    _, repeated, _ = collect_routes(tmp_path, routes, config)
+    assert repeated["source_checks"][0]["article_checks"] == check["article_checks"]
+
+
+def test_text_only_keeps_text_articles_with_embedded_video(tmp_path):
+    raw = (
+        article("moh_population")
+        .replace(TEXT.encode(), (TEXT * 3).encode())
+        .replace(
+            b"</div>", b'<iframe src="https://www.youtube.com/embed/abc12345678"></iframe></div>'
+        )
+    )
+    config = source("moh_population").model_copy(update={"html_media_policy": "text_only"})
+    store, run, requests = collect_routes(
+        tmp_path, {"/": b'<a href="/story/">Fixture</a>', "/story/": raw}, config
+    )
+    assert run["status"] == "completed" and len(run["documents"]) == 1
+    assert next(iter(load_documents(store, run).values())).coverage == "html_article"
+    assert len(requests) == 2
+
+
+def test_text_only_does_not_hide_a_pdf_text_extraction_gap(tmp_path):
+    raw = article("moh_population").replace(
+        TEXT.encode(), b'<iframe src="https://vnpa.moh.gov.vn/report.pdf"></iframe>'
+    )
+    config = source("moh_population").model_copy(update={"html_media_policy": "text_only"})
+    _, run, _ = collect_routes(
+        tmp_path, {"/": b'<a href="/report/">Fixture</a>', "/report/": raw}, config
+    )
+    assert run["source_checks"][0]["status"] == "partial"
+    assert run["source_checks"][0]["article_checks"][0]["status"] == "needs_review"
+
+
+def test_text_only_does_not_turn_broken_html_into_completed_coverage(tmp_path):
+    media, _ = captured("moh_video")
+    config = source("moh_population").model_copy(update={"html_media_policy": "text_only"})
+    _, run, _ = collect_routes(
+        tmp_path,
+        {
+            "/": b'<a href="/media/">Video</a><a href="/broken/">Article</a>',
+            "/media/": media,
+            "/broken/": b"<html>Unknown article structure</html>",
+        },
+        config,
+    )
+    check = run["source_checks"][0]
+    assert check["status"] == "partial" and not check["coverage_complete"]
+    assert check["counts"]["excluded_media"] == check["counts"]["failed"] == 1
+
+
+def test_default_media_policy_preserves_legacy_checkpoint_identity():
+    config = source("moh_population")
+    old_config = config.model_dump()
+    old_config.pop("html_media_policy")
+    before = hashlib.sha256(
+        json_bytes(
+            dict(
+                source=old_config,
+                mindate="2026-10-03",
+                maxdate="2026-10-10",
+                parser_version=PARSER_VERSION,
+            )
+        )
+    ).hexdigest()
+    assert checkpoint_identity(config, date(2026, 10, 3), date(2026, 10, 10)) == before
+    changed = config.model_copy(update={"html_media_policy": "text_only"})
+    assert checkpoint_identity(changed, date(2026, 10, 3), date(2026, 10, 10)) != before
 
 
 def test_intro_edit_changes_snapshot_but_identical_replay_does_not(tmp_path):

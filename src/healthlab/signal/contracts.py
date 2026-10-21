@@ -42,6 +42,7 @@ class Source(Contract):
     html_rules: HTMLSourceRules | None = None
     html_discovery: HTMLDiscoveryRules | None = None
     html_max_response_bytes: int = Field(default=2_000_000, ge=1000, le=8_000_000)
+    html_media_policy: Literal["review", "text_only"] = "review"
 
     @property
     def resolved_html_rules(self):

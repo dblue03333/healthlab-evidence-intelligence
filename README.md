@@ -5,6 +5,22 @@ Credentials, run stores, internal plans and evaluation reports stay local under
 `.env`, `outputs/`, `local_docs/` and `docs/`; local report paths below are not
 part of the GitHub checkout.
 
+## Signal T1 text-only scope — 21 October 2026
+
+The three sources in `config/signal_sources.json` now set
+`html_media_policy: "text_only"`, as requested by the reviewer. Pages with only
+images, audio or video are recorded as `excluded_media`, with their captured HTML
+and the explicit reason `media_out_of_scope`. No media or transcript is fetched
+by the collector, and these pages are not sent to the triage model. Articles with
+enough written content remain eligible even when they also embed media.
+
+Coverage is reported for the configured text scope. Excluded media is counted
+separately; it is not claimed as read or classified for editorial relevance.
+Unread PDFs, malformed HTML, date problems and discovery gaps still need review.
+Custom registries retain the earlier `review` policy unless explicitly changed;
+legacy checkpoint identities remain compatible with that policy. Changing the
+policy requires a new collection or explicit cached-response reprocessing.
+
 ## Current Signal defaults — 20 October 2026
 
 FPT now uses the exact inventory ID `DeepSeek-V4-Flash` on the existing FPT

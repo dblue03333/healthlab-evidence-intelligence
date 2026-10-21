@@ -36,19 +36,27 @@ def fetch_html(client, url, store):
     return HTMLFetcher(client, store).fetch(url, checkpoint, lambda: None)
 
 
-def collect_html(
-    store, source, client, *, mindate, maxdate, checkpoint=None, on_checkpoint=None, fetcher=None
-):
-    identity = hashlib.sha256(
+def checkpoint_identity(source, mindate, maxdate):
+    config = source.model_dump()
+    # Preserve checkpoint identities made before the opt-in text-only policy.
+    if config["html_media_policy"] == "review":
+        config.pop("html_media_policy")
+    return hashlib.sha256(
         json_bytes(
             {
-                "source": source.model_dump(),
+                "source": config,
                 "mindate": str(mindate),
                 "maxdate": str(maxdate),
                 "parser_version": PARSER_VERSION,
             }
         )
     ).hexdigest()
+
+
+def collect_html(
+    store, source, client, *, mindate, maxdate, checkpoint=None, on_checkpoint=None, fetcher=None
+):
+    identity = checkpoint_identity(source, mindate, maxdate)
     checkpoint = (
         checkpoint
         if checkpoint is not None
@@ -127,6 +135,9 @@ def collect_html(
         "http_attempts": checkpoint["http_attempts"],
         "request_attempt_count": len(checkpoint["http_attempts"]),
     }
+    if source.html_media_policy == "text_only":
+        metadata["media_policy"] = "text_only"
+        metadata["coverage"] += "; text only; images, audio and video content excluded"
     for item in selected:
         cached = checkpoint["results"].get(item["url"])
         if cached:
@@ -183,6 +194,18 @@ def collect_html(
             check["content_coverage"] = parsed["content_coverage"]
             check["media"] = parsed["media"]
             check["topic_hint"] = parsed["topic_hint"]
+            if (
+                parsed["requires_media_review"]
+                and source.html_media_policy == "text_only"
+                and parsed["media"]
+                and all(m["kind"] in {"image", "video", "audio"} for m in parsed["media"])
+            ):
+                check.update(
+                    status="excluded_media",
+                    exclusion_reason="media_out_of_scope",
+                    content_coverage="excluded_by_text_only_policy",
+                )
+                continue
             if date_conflict:
                 raise IngestionError("html_date_conflict", "Listing and article dates disagree")
             if published is None:
@@ -235,7 +258,13 @@ def collect_html(
             check.update(status="failed", error_code=type(exc).__name__)
             metadata["item_errors"].append({"url": item["url"], "code": type(exc).__name__})
         finally:
-            if check.get("status") in {"included", "outside_window", "needs_review", "failed"}:
+            if check.get("status") in {
+                "included",
+                "outside_window",
+                "needs_review",
+                "failed",
+                "excluded_media",
+            }:
                 checkpoint["results"][item["url"]] = {
                     "check": check,
                     "document_sha256": store.put(json_bytes(document.model_dump()))
@@ -259,8 +288,10 @@ def collect_html(
     metadata["coverage_complete"] = metadata["coverage_complete"] and not metadata["item_errors"]
     metadata["website_coverage_complete"] = False
     metadata["checked_count"] = len(checks)
+    statuses = ("included", "outside_window", "needs_review", "failed")
+    if source.html_media_policy == "text_only":
+        statuses += ("excluded_media",)
     metadata["counts"] = {
-        status: sum(check.get("status") == status for check in checks)
-        for status in ("included", "outside_window", "needs_review", "failed")
+        status: sum(check.get("status") == status for check in checks) for status in statuses
     }
     return documents, metadata
