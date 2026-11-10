@@ -13,6 +13,7 @@ from healthlab.editorial.contracts import (
     VERSION,
     canonical_proposal,
     passage_policy,
+    resolve_reference_ids,
 )
 from healthlab.editorial_passages import POLICY as PASSAGE_POLICY
 from healthlab.evidence import decode_model_json
@@ -148,7 +149,11 @@ def adopt_previous(store, run_id, parent_id, *, probes=()):
                         continue
                     raw = raw[key]
                     route = "explicit_single_wrapper_" + key
-                result = canonical_proposal(raw, records[old["document_id"]], run["question"])
+                row = records[old["document_id"]]
+                # Live output cites passages by ID; resolve it exactly as inference does.
+                if "relevance_passage_id" in raw:
+                    raw = resolve_reference_ids(raw, row, version=run["version"])
+                result = canonical_proposal(raw, row, run["question"], version=run["version"])
                 reused[old["document_id"]] = (old, result, route)
             except Exception:
                 continue  # Retain original failure; never guess missing content.

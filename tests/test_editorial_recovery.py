@@ -8,6 +8,7 @@ import pytest
 from healthlab import editorial as ed
 from healthlab.editorial.contracts import ArticleProposal
 from healthlab.editorial.report import write_report
+from healthlab.provider import Completion
 from healthlab.store import RunStore, json_bytes
 from tests.test_editorial import proposal, scope_assessment, setup_run
 
@@ -59,14 +60,28 @@ def child_run(tmp_path, store, provider, call_budget):
     )
 
 
-def store_closed_schema_output(store, parent):
-    """Give the parent classification a saved output that recovery accepts as-is."""
-    job = ed.jobs(store, store.load(parent["run_id"]))[0]
-    saved = json.loads(store.read(job["result_sha256"]))
-    job["content_sha256"] = store.put(
-        json_bytes({key: saved[key] for key in ArticleProposal.model_fields})
+def live_output():
+    """The classification as the model returns it: passages and dates cited by ID."""
+    value = {k: v for k, v in proposal().items() if k not in {"relevance_quote", "facts"}}
+    fact = proposal()["facts"][0]
+    return dict(
+        value,
+        relevance_passage_id="P2",
+        facts=[
+            dict(
+                statement=fact["statement"],
+                passage_id="P1",
+                supporting_passage_ids=[],
+                event_date_candidate_id="D1",
+                date_link_rationale=None,
+                reported_status=fact["reported_status"],
+            )
+        ],
     )
-    store.save(job)
+
+
+def adopted_job(store, child):
+    return ed.jobs(store, store.load(child["run_id"]))[0]
 
 
 def test_draft_export_keeps_the_evidence_the_writer_was_given(tmp_path, monkeypatch):
@@ -92,7 +107,6 @@ def test_draft_export_keeps_the_evidence_the_writer_was_given(tmp_path, monkeypa
 
 def test_over_budget_recovery_is_rejected_before_any_job_changes(tmp_path, monkeypatch):
     store, parent, provider = drafted_run(tmp_path, monkeypatch)
-    store_closed_schema_output(store, parent)
     child = child_run(tmp_path, store, provider, call_budget=2)
 
     with pytest.raises(ValueError, match="exceed original call budget"):
@@ -109,7 +123,6 @@ def test_over_budget_recovery_is_rejected_before_any_job_changes(tmp_path, monke
 def test_interrupted_recovery_keeps_prior_charges_and_can_resume(tmp_path, monkeypatch):
     store, parent, provider = setup_run(tmp_path, monkeypatch, [proposal()])
     ed.run_calls(store, parent["run_id"], provider, workers=1)
-    store_closed_schema_output(store, parent)
     child = child_run(tmp_path, store, provider, call_budget=5)
     save = store.save
 
@@ -140,3 +153,72 @@ def test_interrupted_recovery_keeps_prior_charges_and_can_resume(tmp_path, monke
     with pytest.raises(ValueError, match="already recorded"):
         ed.adopt_previous(store, child["run_id"], parent["run_id"])
     assert provider.calls == 1
+
+
+def test_recovery_reuses_live_output_that_cites_passages_by_id(tmp_path, monkeypatch):
+    store, parent, provider = setup_run(tmp_path, monkeypatch, [proposal()])
+    ed.run_calls(store, parent["run_id"], provider, workers=1)
+    original = ed.jobs(store, store.load(parent["run_id"]))[0]
+    child = child_run(tmp_path, store, provider, call_budget=5)
+
+    result = ed.adopt_previous(store, child["run_id"], parent["run_id"])
+
+    assert result["reused"] == 1 and result["new_primary_calls_planned"] == 0
+    job = adopted_job(store, child)
+    assert job["revalidation_route"] == "original_closed_schema"
+    assert job["result_sha256"] == original["result_sha256"]
+    assert provider.calls == 1
+
+
+def test_recovery_unwraps_one_named_wrapper_around_live_output(tmp_path, monkeypatch):
+    wrapped = Completion(
+        json.dumps({"json": live_output()}, ensure_ascii=False),
+        "fake-test",
+        "stop",
+        {"total_tokens": 5},
+    )
+    store, parent, provider = setup_run(tmp_path, monkeypatch, [wrapped])
+    assert ed.run_calls(store, parent["run_id"], provider, workers=1)["classified"] == 0
+    child = child_run(tmp_path, store, provider, call_budget=5)
+
+    result = ed.adopt_previous(store, child["run_id"], parent["run_id"])
+
+    assert result["prior_calls_charged"] == 1 and result["reused"] == 1
+    job = adopted_job(store, child)
+    assert job["status"] == "completed" and job["charged"] is False
+    assert job["revalidation_route"] == "explicit_single_wrapper_json"
+    packet = ed.evidence_packet(store, child["run_id"])
+    assert packet["articles"][0]["proposal"]["relevance"] == "relevant"
+    assert provider.calls == 1
+
+
+def test_recovery_still_accepts_an_already_resolved_closed_schema(tmp_path, monkeypatch):
+    store, parent, provider = setup_run(tmp_path, monkeypatch, [proposal()])
+    ed.run_calls(store, parent["run_id"], provider, workers=1)
+    original = ed.jobs(store, store.load(parent["run_id"]))[0]
+    saved = json.loads(store.read(original["result_sha256"]))
+    original["content_sha256"] = store.put(
+        json_bytes({key: saved[key] for key in ArticleProposal.model_fields})
+    )
+    store.save(original)
+    child = child_run(tmp_path, store, provider, call_budget=5)
+
+    assert ed.adopt_previous(store, child["run_id"], parent["run_id"])["reused"] == 1
+    assert adopted_job(store, child)["result_sha256"] == original["result_sha256"]
+
+
+def test_recovery_never_reuses_output_citing_an_unknown_passage(tmp_path, monkeypatch):
+    invalid = Completion(
+        json.dumps(dict(live_output(), relevance_passage_id="P99"), ensure_ascii=False),
+        "fake-test",
+        "stop",
+        {"total_tokens": 5},
+    )
+    store, parent, provider = setup_run(tmp_path, monkeypatch, [invalid])
+    ed.run_calls(store, parent["run_id"], provider, workers=1)
+    child = child_run(tmp_path, store, provider, call_budget=5)
+
+    result = ed.adopt_previous(store, child["run_id"], parent["run_id"])
+
+    assert result["reused"] == 0 and result["new_primary_calls_planned"] == 1
+    assert adopted_job(store, child)["status"] == "prepared"
