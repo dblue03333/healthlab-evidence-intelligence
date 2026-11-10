@@ -78,7 +78,14 @@ def write_report(store, run, records, calls, packet, directory):
                 f"Kỳ {run['question']['mindate']}–{run['question']['maxdate']}. BẢN NHÁP CHƯA DUYỆT.",
                 "",
             ]
-            by_eid = {e["evidence_id"]: e for e in packet["draft_evidence"]}
+            # Evidence IDs are positional. Later reviews can renumber the current packet,
+            # so resolve them against the exact evidence the writer was given.
+            evidence = (
+                json.loads(store.read(job["evidence_sha256"]))
+                if job.get("evidence_sha256")
+                else packet["draft_evidence"]
+            )
+            by_eid = {e["evidence_id"]: e for e in evidence}
             for section in draft["sections"]:
                 lines += [f"## {section['title']}", ""]
                 for claim in section["facts"]:
@@ -93,7 +100,7 @@ def write_report(store, run, records, calls, packet, directory):
                     "",
                 ]
             lines += ["## Đoạn bằng chứng đã lưu", ""]
-            for e in packet["draft_evidence"]:
+            for e in evidence:
                 lines += [
                     f"**{e['evidence_id']} — {e['title']}**",
                     "",

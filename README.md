@@ -58,7 +58,7 @@ uv sync --extra dev --extra cloud
 uv run --locked python scripts/ci_checks.py
 ```
 
-As of 10 November 2026 this runs 893 offline tests with no network access; six
+As of 10 November 2026 this runs 896 offline tests with no network access; six
 PostgreSQL tests are skipped unless a disposable database is supplied.
 
 The sections below are dated notes for each workstream, newest first.

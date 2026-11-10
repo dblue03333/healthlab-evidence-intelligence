@@ -124,11 +124,13 @@ def adopt_previous(store, run_id, parent_id, *, probes=()):
         parent = store.load(parent_id)
         if run["input_sha256"] != parent["input_sha256"] or run["provider"] != parent["provider"]:
             raise ValueError("Parent inputs/provider differ")
-        if run.get("parent_run_id"):
+        resuming = run.get("parent_run_id") == parent_id and run.get("adoption_status") == "started"
+        if run.get("parent_run_id") and not resuming:
             raise ValueError("Revalidation already recorded")
         previous = jobs(store, parent) + [store.load(i) for i in probes]
-        run["parent_run_id"] = parent_id
-        run["prior_call_count"] = sum(j["status"] != "prepared" for j in previous)
+        prior = sum(j["status"] != "prepared" for j in previous)
+        if resuming and run["prior_call_count"] != prior:
+            raise ValueError("Interrupted revalidation must resume with the same prior calls")
         reused = {}
         for old in previous:
             if (
@@ -150,21 +152,42 @@ def adopt_previous(store, run_id, parent_id, *, probes=()):
                 reused[old["document_id"]] = (old, result, route)
             except Exception:
                 continue  # Retain original failure; never guess missing content.
-        for new in jobs(store, run):
-            found = reused.get(new["document_id"])
-            if found:
-                old, result, route = found
-                new.update(
-                    status="completed",
-                    reused_from=old["run_id"],
-                    revalidation_route=route,
-                    result_sha256=store.put(json_bytes(result)),
-                    charged=False,
-                )
-                store.save(new)
-        run["status"] = "prepared"
-        if allocated_calls(run, jobs(store, run)) > run["call_budget"]:
+        current = jobs(store, run)
+        # Only an undispatched classification can take a reused result; a job that
+        # already reached the provider keeps its own charge and outcome.
+        adopt = [
+            j
+            for j in current
+            if j["role"] == "classify"
+            and j["status"] == "prepared"
+            and j.get("document_id") in reused
+        ]
+        adopted = {j["run_id"] for j in adopt}
+        planned = prior + sum(
+            not j.get("reused_from") and j["run_id"] not in adopted for j in current
+        )
+        if planned > run["call_budget"]:
             raise ValueError("Recovery would exceed original call budget")
+        # Record the historical charges before any reused result is saved, so a
+        # rejected or interrupted adoption can never leave them uncounted.
+        run.update(
+            parent_run_id=parent_id,
+            prior_call_count=prior,
+            adoption_status="started",
+            status="prepared",
+        )
+        store.save(run)
+        for new in adopt:
+            old, result, route = reused[new["document_id"]]
+            new.update(
+                status="completed",
+                reused_from=old["run_id"],
+                revalidation_route=route,
+                result_sha256=store.put(json_bytes(result)),
+                charged=False,
+            )
+            store.save(new)
+        run["adoption_status"] = "completed"
         store.save(run)
         return {
             "run_id": run_id,
