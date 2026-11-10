@@ -1,0 +1,331 @@
+"""Versioned editorial schemas and validation against frozen source text."""
+
+import re
+from types import SimpleNamespace
+from typing import Literal
+
+from pydantic import Field, model_validator
+
+from healthlab.editorial_passages import POLICY as PASSAGE_POLICY
+from healthlab.editorial_passages import editorial_passages
+from healthlab.editorial_review_policy import fact_date_supported
+from healthlab.models import Contract
+from healthlab.signal.triage import source_passages
+from healthlab.signal.triage_v5 import literal_dates
+
+VERSION = "gold-editorial-13"
+# Finished known schemas stay readable; inference and mutations require the exact
+# current runtime. Legacy review findings never silently acquire new semantics.
+READ_VERSIONS = {
+    "gold-editorial-1",
+    "gold-editorial-2",
+    "gold-editorial-3",
+    "gold-editorial-4",
+    "gold-editorial-5",
+    "gold-editorial-6",
+    "gold-editorial-7",
+    "gold-editorial-8",
+    "gold-editorial-9",
+    "gold-editorial-10",
+    "gold-editorial-11",
+    "gold-editorial-12",
+    VERSION,
+}
+MAX_BODY_CHARS = 20_000
+
+
+class DateEvidence(Contract):
+    passage_id: str = Field(pattern=r"^P[1-9]\d*$")
+    quote: str = Field(min_length=1)
+    start: int = Field(ge=0)
+    end: int = Field(gt=0)
+
+
+class EvidenceFact(Contract):
+    statement: str = Field(min_length=1, max_length=900)
+    quote: str = Field(min_length=12, max_length=1800)
+    event_date: str | None
+    date_evidence: DateEvidence | None = None
+    date_link_rationale: str | None = Field(default=None, min_length=1, max_length=900)
+    reported_status: Literal[
+        "proposed",
+        "announced",
+        "adopted",
+        "effective",
+        "pilot",
+        "operational",
+        "published_report",
+        "not_applicable",
+        "unknown",
+    ]
+
+
+class ArticleProposal(Contract):
+    relevance: Literal["relevant", "irrelevant", "uncertain"]
+    topics: list[Literal["longevity", "aging_society"]] = Field(max_length=2)
+    jurisdiction: Literal["vietnam", "international", "mixed", "unclear"]
+    content_kind: Literal["new_development", "background", "unclear"]
+    source_role: Literal["original", "repost", "unknown"]
+    summary: str = Field(min_length=1, max_length=1400)
+    rationale: str = Field(min_length=1, max_length=1600)
+    relevance_quote: str = Field(min_length=12, max_length=1800)
+    facts: list[EvidenceFact] = Field(max_length=5)
+    uncertainties: list[str] = Field(max_length=6)
+
+    @model_validator(mode="after")
+    def coherent(self):
+        if self.relevance == "relevant" and (not self.topics or not self.facts):
+            raise ValueError("Relevant content needs a topic and evidence facts")
+        if len(self.topics) != len(set(self.topics)):
+            raise ValueError("Duplicate topics")
+        return self
+
+
+class IDFact(Contract):
+    statement: str = Field(min_length=1, max_length=900)
+    passage_id: str = Field(pattern=r"^P[1-9]\d*$")
+    event_date_candidate_id: str | None
+    date_context_passage_id: str | None = Field(pattern=r"^P[1-9]\d*$")
+    date_link_rationale: str | None = Field(min_length=1, max_length=900)
+    reported_status: Literal[
+        "proposed",
+        "announced",
+        "adopted",
+        "effective",
+        "pilot",
+        "operational",
+        "published_report",
+        "not_applicable",
+        "unknown",
+    ]
+
+
+class IDArticleProposal(Contract):
+    relevance: Literal["relevant", "irrelevant", "uncertain"]
+    topics: list[Literal["longevity", "aging_society"]] = Field(max_length=2)
+    jurisdiction: Literal["vietnam", "international", "mixed", "unclear"]
+    content_kind: Literal["new_development", "background", "unclear"]
+    source_role: Literal["original", "repost", "unknown"]
+    summary: str = Field(min_length=1, max_length=1400)
+    rationale: str = Field(min_length=1, max_length=1600)
+    relevance_passage_id: str = Field(pattern=r"^P[1-9]\d*$")
+    facts: list[IDFact] = Field(max_length=5)
+    uncertainties: list[str] = Field(max_length=6)
+
+
+class ReferenceIDFact(Contract):
+    statement: str = Field(min_length=1, max_length=900)
+    passage_id: str = Field(pattern=r"^P[1-9]\d*$")
+    event_date_candidate_id: str | None
+    date_link_rationale: str | None = Field(min_length=1, max_length=900)
+    reported_status: Literal[
+        "proposed",
+        "announced",
+        "adopted",
+        "effective",
+        "pilot",
+        "operational",
+        "published_report",
+        "not_applicable",
+        "unknown",
+    ]
+
+
+class ReferenceArticleProposal(IDArticleProposal):
+    facts: list[ReferenceIDFact] = Field(max_length=5)
+
+
+class SupportedIDFact(ReferenceIDFact):
+    supporting_passage_ids: list[str] = Field(max_length=3)
+
+    @model_validator(mode="after")
+    def distinct_support(self):
+        ids = [self.passage_id, *self.supporting_passage_ids]
+        if len(ids) != len(set(ids)):
+            raise ValueError("Repeated supporting passage ID")
+        return self
+
+
+class SupportedReferenceProposal(ReferenceArticleProposal):
+    facts: list[SupportedIDFact] = Field(max_length=5)
+
+
+class SupportedEvidenceFact(EvidenceFact):
+    supporting_passages: list[DateEvidence] = Field(min_length=1, max_length=4)
+
+
+class SupportedArticleProposal(ArticleProposal):
+    facts: list[SupportedEvidenceFact] = Field(max_length=5)
+
+
+def passage_policy(version):
+    if version in {"gold-editorial-11", "gold-editorial-12", "gold-editorial-13"}:
+        return PASSAGE_POLICY
+    if version in READ_VERSIONS:
+        return "editorial-passages-1"
+    raise ValueError("Unknown editorial passage runtime")
+
+
+def passage_inputs(article, *, version=VERSION):
+    units = (
+        editorial_passages(article["body"])
+        if passage_policy(version) == PASSAGE_POLICY
+        else source_passages(SimpleNamespace(text=article["body"]))
+    )
+    dates = []
+    for unit in units:
+        for value in literal_dates(unit["quote"]):
+            dates.append(
+                dict(candidate_id=f"D{len(dates) + 1}", passage_id=unit["passage_id"], **value)
+            )
+    return units, dates
+
+
+def resolve_ids(payload, article, *, version="gold-editorial-10"):
+    value = IDArticleProposal.model_validate(payload)
+    units, dates = passage_inputs(article, version=version)
+    by_id = {p["passage_id"]: p for p in units}
+    by_date = {d["candidate_id"]: d for d in dates}
+    if value.relevance_passage_id not in by_id:
+        raise ValueError("Unknown relevance passage")
+    resolved = []
+    for fact in value.facts:
+        if fact.passage_id not in by_id:
+            raise ValueError("Unknown fact passage")
+        selected = by_date.get(fact.event_date_candidate_id)
+        context = by_id.get(fact.date_context_passage_id)
+        if fact.date_context_passage_id is not None and (
+            selected is None
+            or context is None
+            or selected["passage_id"] != fact.date_context_passage_id
+            or not fact.date_link_rationale
+        ):
+            raise ValueError("Date context needs a matching literal date and event link")
+        if fact.event_date_candidate_id is not None and (
+            selected is None or (selected["passage_id"] != fact.passage_id and context is None)
+        ):
+            raise ValueError("Date candidate does not belong to fact passage")
+        resolved.append(
+            dict(
+                statement=fact.statement,
+                quote=by_id[fact.passage_id]["quote"],
+                event_date=selected["date"] if selected else None,
+                date_evidence=context,
+                date_link_rationale=fact.date_link_rationale,
+                reported_status=fact.reported_status,
+            )
+        )
+    raw = value.model_dump(exclude={"relevance_passage_id", "facts"})
+    return dict(raw, relevance_quote=by_id[value.relevance_passage_id]["quote"], facts=resolved)
+
+
+def resolve_reference_ids(payload, article, *, version=VERSION):
+    """Derive the date passage from its immutable candidate; never infer event linkage.
+
+    V1–7 ID payloads retain their original validator above. Current inference no
+    longer asks the model to repeat a passage ID already determined by a date ID.
+    A rationale for a same-passage/null date is retained as untrusted audit text;
+    it cannot change the selected date or create cross-passage evidence.
+    """
+    supported = version == "gold-editorial-13"
+    model = SupportedReferenceProposal if supported else ReferenceArticleProposal
+    value = model.model_validate(payload).model_dump()
+    units, dates = passage_inputs(article, version=version)
+    by_id = {u["passage_id"]: u for u in units}
+    supports = []
+    if supported:
+        for fact in value["facts"]:
+            ids = [fact["passage_id"], *fact.pop("supporting_passage_ids")]
+            if any(pid not in by_id for pid in ids):
+                raise ValueError("Unknown supporting passage")
+            supports.append([by_id[pid] for pid in ids])
+    by_date = {d["candidate_id"]: d for d in dates}
+    for fact in value["facts"]:
+        date_id = fact["event_date_candidate_id"]
+        selected = by_date.get(date_id)
+        if date_id is not None and selected is None:
+            raise ValueError("Unknown event date candidate")
+        linked = selected and selected["passage_id"] != fact["passage_id"]
+        if linked and not fact["date_link_rationale"]:
+            raise ValueError("Cross-passage date needs an explicit same-event rationale")
+        fact["date_context_passage_id"] = selected["passage_id"] if linked else None
+    result = resolve_ids(value, article, version=version)
+    if supported:
+        for fact, spans in zip(result["facts"], supports, strict=True):
+            fact["supporting_passages"] = spans
+    return result
+
+
+class DraftClaim(Contract):
+    text: str = Field(min_length=1, max_length=1200)
+    evidence_ids: list[str] = Field(min_length=1, max_length=5)
+
+
+class DraftSection(Contract):
+    title: str = Field(min_length=1, max_length=200)
+    facts: list[DraftClaim] = Field(min_length=1, max_length=5)
+    interpretation: str = Field(min_length=1, max_length=1400)
+    uncertainty: str = Field(min_length=1, max_length=1000)
+
+
+class EditorialDraft(Contract):
+    title: str = Field(min_length=1, max_length=200)
+    sections: list[DraftSection] = Field(min_length=1, max_length=8)
+
+
+def canonical_proposal(value, article, window, *, version=VERSION):
+    model = SupportedArticleProposal if version == "gold-editorial-13" else ArticleProposal
+    p = model.model_validate(value)
+    body = article["body"]
+    if p.relevance_quote not in body:
+        raise ValueError("Relevance quote is not literal article text")
+    resolved, holds = [], []
+    units, _ = passage_inputs(article, version=version)
+    by_id = {u["passage_id"]: u for u in units}
+    for index, fact in enumerate(p.facts):
+        if fact.quote not in body:
+            raise ValueError("Fact quote is not literal article text")
+        if fact.date_evidence:
+            context = fact.date_evidence
+            if not any(context.model_dump() == unit for unit in units):
+                raise ValueError("Date evidence differs from frozen source passage")
+            if not fact.date_link_rationale or fact.event_date is None:
+                raise ValueError("Date context lacks an event date or linkage rationale")
+        if fact.event_date is not None and not fact_date_supported(fact.model_dump()):
+            holds.append(f"fact_{index}:event_date_not_literal_in_quote")
+        if isinstance(fact, SupportedEvidenceFact):
+            spans = [s.model_dump() for s in fact.supporting_passages]
+            ids = [s["passage_id"] for s in spans]
+            if len(ids) != len(set(ids)) or any(by_id.get(s["passage_id"]) != s for s in spans):
+                raise ValueError("Supporting evidence differs from frozen source passages")
+            if spans[0]["quote"] != fact.quote:
+                raise ValueError("Primary quote differs from first supporting passage")
+            start = spans[0]["start"]
+        else:
+            start = body.index(fact.quote)
+        resolved.append(dict(fact.model_dump(), start=start, end=start + len(fact.quote)))
+    in_window = any(
+        f.event_date
+        and fact_date_supported(f.model_dump())
+        and window["mindate"] <= f.event_date <= window["maxdate"]
+        for f in p.facts
+    )
+    # A footer attribution forces origin review regardless of model confidence.
+    external_footer = bool(re.search(r"(?:Nguồn|Theo)\s*:\s*[^\n]+", body[-2500:], re.I))
+    candidate = (
+        p.relevance == "relevant"
+        and p.jurisdiction == "vietnam"
+        and p.content_kind == "new_development"
+        and p.source_role == "original"
+        and in_window
+        and not holds
+        and not external_footer
+    )
+    return dict(
+        p.model_dump(),
+        resolved_facts=resolved,
+        technical_holds=holds,
+        origin_footer_review=external_footer,
+        newsletter_candidate=candidate,
+        semantic_support="not_human_reviewed",
+    )

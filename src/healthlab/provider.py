@@ -59,12 +59,18 @@ class FPTProvider:
     def identity(self):
         return {
             "provider": "fpt",
-            "adapter_version": "fpt-chat-1",
+            "adapter_version": "fpt-chat-2",
             "base_url": self.settings.base_url.rstrip("/"),
             "model": self.settings.model,
             "temperature": 0.0,
             "max_tokens": self.settings.max_tokens,
+            "request_options": self.request_options(),
         }
+
+    def request_options(self):
+        if self.settings.thinking_mode == "provider_default":
+            return {}
+        return {"thinking": {"type": self.settings.thinking_mode}}
 
     def close(self):
         if self.owns_client and self.client is not None:
@@ -95,6 +101,7 @@ class FPTProvider:
         key = self.settings.api_key.get_secret_value()
         event = {
             "provider": "fpt",
+            "request_options": self.request_options(),
             "started_at": utc_now(),
             "http_status": None,
             "error_code": None,
@@ -105,6 +112,7 @@ class FPTProvider:
             "messages": messages,
             "temperature": 0.0,
             "max_tokens": self.settings.max_tokens,
+            **self.request_options(),
         }
         if response_format is not None:
             payload["response_format"] = response_format
