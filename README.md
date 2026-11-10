@@ -1,9 +1,67 @@
 # HealthLab Evidence Intelligence
 
-Source, reusable configuration and offline regression fixtures are versioned here.
-Credentials, run stores, internal plans and evaluation reports stay local under
-`.env`, `outputs/`, `local_docs/` and `docs/`; local report paths below are not
-part of the GitHub checkout.
+HealthLab collects public health sources, keeps every captured response, and
+turns them into evidence-linked drafts that a human editor can check against the
+original text. Source, reusable configuration and offline regression fixtures
+are versioned here. Credentials, run stores, evaluation reports, handoff notes
+and agent task files stay local; local report paths mentioned below are not part
+of the GitHub checkout.
+
+## What is here
+
+| Area | What it does | Entry point | Current state |
+| --- | --- | --- | --- |
+| Public-source data pipeline | Collects text articles from the Vietnam Ministry of Health, the HCMC Department of Health and WHO for a date window. Stores raw responses by hash, normalizes them, and publishes versioned datasets that can be replayed offline, repaired, exported and verified. Includes a coverage comparison, a local pilot runner, an incident ledger and backup. | `python -m healthlab.data` | Usable for manual runs. Source coverage is checked against limited references, not proven complete. No schedule is running. |
+| Editorial workflow | Takes a dataset and runs four model roles: classify relevance to healthy ageing, review scope independently, review facts, dates and citations, then draft from the facts that pass. Code gates decide what reaches the writer; failures are kept, not retried. | `python -m healthlab.editorial` | Supervised use only. Model output still fails some date-link and citation-context checks, and there is no independent human-labelled evaluation yet. |
+| Signal newsletter pilot | The earlier collect, triage, draft and verify flow. Its collectors, HTTP client and storage adapters are shared with the data pipeline. | `python -m healthlab.signal` | Earlier pilot; kept working and tested. |
+| PubMed evidence briefs | Ingests PubMed records, extracts per-paper evidence with supporting passages, and drafts an evidence brief. Includes a review backend, a development benchmark and abstract screening. | `python -m healthlab` | Earlier checkpoints (CP6 to CP13); offline replay is tested. |
+
+Collection reads public websites. The classify, scope, review and draft roles
+call the configured FPT model and need `FPT_API_KEY` in a local `.env`
+(see `.env.example`). Everything else, including the tests, runs offline.
+
+## Repository layout
+
+```text
+config/                     Source registries and storage examples
+  signal_sources.json       Default registry: Ministry of Health, HCMC, WHO
+  examples/                 Template for adding an HTML text source
+src/healthlab/
+  signal/                   Source collectors, HTML and JSON adapters, HTTP client,
+                            local/PostgreSQL/GCS storage, earlier triage and drafts
+  data/                     Dataset pipeline: collect, replay, repair, export, verify,
+                            coverage, pilot runner, incidents, supervision, backup
+  editorial/                Editorial runs: prepare, classify, scope, review, draft, report
+  editorial_*.py            Passage grouping, scope and review rules, curation, releases
+  provider.py               FPT model backend (gemini.py and openrouter.py are optional)
+  pubmed.py, pipeline.py,   PubMed ingestion, extraction, synthesis and brief rendering
+  extraction.py, synthesis.py, brief.py, orchestration.py
+  review.py, benchmark.py,  Review backend, development benchmark, abstract screening
+  screening.py
+  store.py, models.py,      Content-addressed run store, shared contracts, settings
+  config.py
+scripts/                    ci_checks.py (offline test entry point), coverage and audit
+                            helpers, container smoke test
+tests/                      Offline tests; fixtures/ holds captured public pages with
+                            provenance records
+benchmarks/                 Development benchmark questions
+experiments/                Early PubMed and FPT probes with captured samples
+docs/                       Early design notes
+Dockerfile, .github/        Batch worker image and CI workflow
+outputs/                    Run stores and raw captures (ignored by Git)
+```
+
+## Check a fresh checkout
+
+```bash
+uv sync --extra dev --extra cloud
+uv run --locked python scripts/ci_checks.py
+```
+
+As of 10 November 2026 this runs 893 offline tests with no network access; six
+PostgreSQL tests are skipped unless a disposable database is supplied.
+
+The sections below are dated notes for each workstream, newest first.
 
 ## Signal T1 text-only scope — 21 October 2026
 
@@ -616,15 +674,11 @@ uv run ruff format --check src tests
 
 Tests use synthetic fixtures and mock HTTP, with no API calls.
 
-## Project map
+## PubMed store and scope
 
-```text
-src/healthlab/       Contracts, connector, parser, store, pipeline and CLI
-experiments/        CP2/CP3 probes and captured samples
-tests/fixtures/     Synthetic parser fixtures (not medical evidence)
-outputs/runs/       Per-run manifests (ignored by Git)
-outputs/objects/    Shared content-addressed payloads and snapshots (ignored by Git)
-```
+See [Repository layout](#repository-layout) for the folder map. Each run store
+under `outputs/` keeps per-run manifests in `runs/` and shared content-addressed
+payloads and snapshots in `objects/`.
 
 PubMed coverage is metadata/abstracts only, not full text or comprehensive literature
 coverage. The CLI is designed for sequential local use; its request limiter does not
