@@ -1,0 +1,32 @@
+{
+  "schema_version": "signal-registry-3",
+  "sources": [
+    {
+      "source_id": "replace_with_source_id",
+      "organization": "Replace with the publisher name",
+      "kind": "html",
+      "enabled": false,
+      "required": true,
+      "url": "https://publisher.example.org/news",
+      "usage_policy": "Replace with accepted categories, date basis, pagination and coverage limits before enabling.",
+      "max_article_fetches": 30,
+      "html_max_response_bytes": 2000000,
+      "html_media_policy": "text_only",
+      "html_rules": {
+        "rule_id": "replace_with_source_id",
+        "revision": 1,
+        "host": "publisher.example.org",
+        "article_urls": {"include_path_patterns": ["/article/[^/]+"]},
+        "title": {"tag": "h1"},
+        "body": {"tag": "main"},
+        "listing_date": {"selector": {"tag": "time"}, "format": "iso"},
+        "window_date_policy": "publication"
+      },
+      "html_discovery": {
+        "listing_path_patterns": ["/news(?:/\\d+)?"],
+        "max_listing_pages": 3,
+        "skip_outside_window": true
+      }
+    }
+  ]
+}

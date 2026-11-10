@@ -65,12 +65,15 @@ def _in_pager(node, selector):
 
 
 def discover_listings(store, source, fetcher, checkpoint, save, *, mindate, maxdate=None):
-    if source.html_discovery and source.html_discovery.wordpress_api_url:
-        from healthlab.signal.wordpress_discovery import discover_wordpress
+    # Compatibility entrypoint for callers outside the shared collection engine.
+    from healthlab.signal.source_adapters import source_adapter_for
 
-        return discover_wordpress(
-            source, fetcher, checkpoint, save, mindate=mindate, maxdate=maxdate
-        )
+    return source_adapter_for(source).discover(
+        store, fetcher, checkpoint, save, mindate=mindate, maxdate=maxdate
+    )
+
+
+def discover_html_listings(store, source, fetcher, checkpoint, save, *, mindate, maxdate=None):
     adapter = ConfiguredHTMLAdapter(source.resolved_html_rules)
     rules = source.html_discovery
     queue = list(dict.fromkeys([source.url] + (rules.additional_listing_urls if rules else [])))
@@ -107,7 +110,8 @@ def discover_listings(store, source, fetcher, checkpoint, save, *, mindate, maxd
         total_links += len(inventory["candidates"])
         if inventory["links_truncated"]:
             gaps.append({"url": url, "code": "listing_links_truncated"})
-        local_dates = adapter.listing_dates(raw, url)
+        date_values = adapter.listing_date_values(raw, url)
+        local_dates = {u: next(iter(v)) for u, v in date_values.items() if len(v) == 1}
         for item in inventory["candidates"]:
             decision = adapter.classify_url(item["url"], url)
             if not decision.accepted:
@@ -133,8 +137,7 @@ def discover_listings(store, source, fetcher, checkpoint, save, *, mindate, maxd
                 )
             else:
                 candidates[decision.url] = item | {"url": decision.url}
-            if decision.url in local_dates:
-                value = local_dates[decision.url]
+            for value in sorted(date_values.get(decision.url, [])):
                 dates.setdefault(decision.url, set()).add(value)
                 date_evidence.setdefault(decision.url, []).append(
                     {
@@ -146,7 +149,26 @@ def discover_listings(store, source, fetcher, checkpoint, save, *, mindate, maxd
                     }
                 )
         page.update(status="completed", candidate_count=len(page["candidate_urls"]))
-        known = [local_dates[u] for u in page["candidate_urls"] if u in local_dates]
+        boundary_urls = set(page["candidate_urls"])
+        if rules and rules.chronological_scope:
+            scopes = [n for n in tree.root.nodes() if rules.chronological_scope.matches(n)]
+            if len(scopes) != 1:
+                gaps.append({"url": url, "code": "listing_chronological_scope_changed"})
+                boundary_urls = set()
+            else:
+                boundary_urls = {
+                    d.url
+                    for n in scopes[0].nodes()
+                    if n.tag == "a"
+                    and (d := adapter.classify_url(n.attrs.get("href", ""), url)).accepted
+                }
+                if not boundary_urls:
+                    gaps.append({"url": url, "code": "listing_chronological_scope_empty"})
+            # Sidebar/promoted links still enter the candidate ledger and article
+            # review, but cannot force pagination through unrelated older pages.
+            page["chronological_candidate_urls"] = sorted(boundary_urls)
+            page["chronological_scope"] = rules.chronological_scope.locator
+        known = [local_dates[u] for u in boundary_urls if u in local_dates]
         page["publication_range"] = {"min": min(known), "max": max(known)} if known else None
         page["publication_dates_known"] = len(known)
         if rules and not page["candidate_urls"]:
@@ -165,7 +187,7 @@ def discover_listings(store, source, fetcher, checkpoint, save, *, mindate, maxd
             rules
             and rules.stop_before_window
             and known
-            and len(known) == len(page["candidate_urls"])
+            and len(known) == len(boundary_urls)
             and max(known) < str(mindate)
         )
         page["stop_reason"] = "publication_boundary" if cutoff else "links_exhausted"
@@ -239,7 +261,7 @@ def discover_listings(store, source, fetcher, checkpoint, save, *, mindate, maxd
         queue.sort(key=priority)
     if queue:
         gaps.append({"code": "listing_budget_exhausted", "remaining_count": len(queue)})
-    return {
+    result = {
         "raw_sha256": primary_hash,
         "candidates": list(candidates.values()),
         "excluded": excluded,
@@ -258,3 +280,18 @@ def discover_listings(store, source, fetcher, checkpoint, save, *, mindate, maxd
         ),
         "discovery_complete": not gaps,
     }
+    if rules and rules.who_speeches_api:
+        from healthlab.signal.who_inventory import supplement_speeches
+
+        result = supplement_speeches(
+            result, source, fetcher, checkpoint, save, mindate=mindate, maxdate=maxdate
+        )
+    if rules and rules.who_ageing_widget:
+        from healthlab.signal.who_inventory import supplement_ageing_widget
+
+        result = supplement_ageing_widget(result, source, fetcher, checkpoint, save)
+    if rules and rules.hcm_search_inventory:
+        from healthlab.signal.hcm_search import supplement_search
+
+        result = supplement_search(result, source, fetcher, checkpoint, save, mindate=mindate)
+    return result

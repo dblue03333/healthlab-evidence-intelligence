@@ -38,3 +38,7 @@ outputs/
 
 # Internal planning, checkpoint notes and evaluation reports (local only)
 docs/
+
+# Local agent handoffs. Keep the reusable task template in Git.
+/.ai-work/tasks/*
+!/.ai-work/tasks/EXAMPLE/

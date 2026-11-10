@@ -212,7 +212,13 @@ def test_text_only_scope_excludes_media_without_claiming_it_was_read(tmp_path, n
     assert store.read(item["raw_sha256"]) == raw
     assert len(requests) == 2  # No image, video or transcript request.
     _, repeated, _ = collect_routes(tmp_path, routes, config)
-    assert repeated["source_checks"][0]["article_checks"] == check["article_checks"]
+    repeated_checks = repeated["source_checks"][0]["article_checks"]
+    # Each live fetch has its own acquisition time; identical bytes must retain
+    # the same extraction, exclusion outcome and evidence despite that new time.
+    assert [{k: v for k, v in c.items() if k != "observed_at"} for c in repeated_checks] == [
+        {k: v for k, v in c.items() if k != "observed_at"} for c in check["article_checks"]
+    ]
+    assert repeated_checks[0]["observed_at"] >= item["observed_at"]
 
 
 def test_text_only_keeps_text_articles_with_embedded_video(tmp_path):

@@ -1,9 +1,9 @@
 {
   "sources": [
     {
-      "source_id": "moh_population",
-      "organization": "Bộ Y tế / Cục Dân số — candidate endpoint",
-      "url": "https://vnpa.moh.gov.vn/"
+      "source_id": "moh_portal",
+      "organization": "Bộ Y tế Việt Nam — portal shell; collection uses public API",
+      "url": "https://moh.gov.vn/"
     },
     {
       "source_id": "hcm_health",

@@ -19,7 +19,7 @@ from healthlab.signal.source_http import FetchPolicy, HTMLFetcher, source_client
 from healthlab.signal.storage import collection_storage
 from healthlab.store import json_bytes
 
-COLLECTION_VERSION = "signal-collection-7"
+COLLECTION_VERSION = "signal-collection-9"
 
 
 @contextmanager
@@ -123,6 +123,14 @@ def _configuration(run):
                 "fetch_policy": run["fetch_policy"],
                 "version": run["parser_version"],
                 "html_parser_version": run["html_parser_version"],
+                "candidate_history": run.get("candidate_history", {}),
+                "replay_of_manifest_sha256": run.get("replay_of_manifest_sha256"),
+                "observed_at": run.get("observed_at"),
+                **(
+                    {"repair_of_manifest_sha256": run["repair_of_manifest_sha256"]}
+                    if run.get("repair_of_manifest_sha256")
+                    else {}
+                ),
             }
         )
     ).hexdigest()
@@ -138,14 +146,23 @@ def collect(
     pubmed_client=None,
     fetch_policy=None,
     on_started=None,
+    remember_candidates=False,
+    operation_id=None,
 ):
     if mindate > maxdate:
         raise ValueError("mindate must not be later than maxdate")
+    if remember_candidates and any(s.kind != "html" for s in registry.sources if s.enabled):
+        raise ValueError("Candidate history supports HTML/API sources only")
     storage = collection_storage(store)
     owned = rss_client is None
     rss_client = rss_client or source_client()
     try:
         with storage.state.lock():
+            history = {}
+            if remember_candidates:
+                from healthlab.signal.history import candidate_history
+
+                history = candidate_history(storage, registry, mindate, maxdate)
             run = storage.new(
                 "signal_collection", {"mindate": str(mindate), "maxdate": str(maxdate)}
             )
@@ -156,7 +173,10 @@ def collect(
                 parser_version=COLLECTION_VERSION,
                 html_parser_version=HTML_PARSER_VERSION,
                 fetch_policy=(fetch_policy or FetchPolicy()).as_dict(),
+                candidate_history=history,
             )
+            if operation_id is not None:
+                run["operation_id"] = operation_id
             run["configuration_hash"] = _configuration(run)
             storage.save(run)
             if on_started:
@@ -190,22 +210,21 @@ def resume_collection(store, run_id, *, rss_client=None):
         registry = Registry.model_validate(run["registry"])
         if any(s.kind != "html" for s in registry.sources if s.enabled):
             raise ValueError("Resume currently supports HTML collections only")
-        # Verify all retained responses/results before allowing any new requests.
-        for check in run["source_checks"]:
-            if check.get("checkpoint_sha256"):
-                checkpoint = json.loads(storage.read(check["checkpoint_sha256"]))
-                for response in checkpoint["responses"].values():
-                    storage.read(response["raw_sha256"])
-                for result in checkpoint["results"].values():
-                    if result["check"].get("extraction_sha256"):
-                        storage.read(result["check"]["extraction_sha256"])
-                    if result.get("document_sha256"):
-                        storage.read(result["document_sha256"])
+        # Include historical discovery evidence, not just this run's responses,
+        # before permitting any new request after an interruption.
+        from healthlab.signal.backup import object_references, references
+
+        pending, verified = list(references(run)), set()
+        while pending:
+            digest = pending.pop()
+            if digest not in verified:
+                pending.extend(object_references(storage.read(digest)))
+                verified.add(digest)
         load_documents(storage, run)
         if run["status"] != "running":
             return run
-        owned = rss_client is None
-        rss_client = rss_client or source_client()
+        owned = rss_client is None and not run.get("replay_of_manifest_sha256")
+        rss_client = source_client() if owned else rss_client
         try:
             return _collect_locked(
                 storage,
@@ -267,6 +286,7 @@ def _collect_locked(
                     store,
                     FetchPolicy(**run["fetch_policy"]),
                     max_bytes=source.html_max_response_bytes,
+                    cache_only=bool(run.get("replay_of_manifest_sha256")),
                 )
                 checkpoint = (
                     json.loads(store.read(check["checkpoint_sha256"]))
@@ -287,6 +307,9 @@ def _collect_locked(
                     checkpoint=checkpoint,
                     on_checkpoint=save_checkpoint,
                     fetcher=fetcher,
+                    historical_candidates=run.get("candidate_history", {}).get(
+                        source.source_id, []
+                    ),
                 )
                 check.update(metadata)
                 check["status"] = (
@@ -342,7 +365,22 @@ def _collect_locked(
             for document in documents:
                 reference = _snapshot(store, document)
                 key = source.source_id + ":" + document.document_id
-                previous = index.get(key)
+                indexed = index.get(key)
+                observation = next(
+                    (c for c in check.get("article_checks", []) if c["url"] == document.url), {}
+                )
+                observed_at = observation.get(
+                    "observed_at", run.get("observed_at", run["created_at"])
+                )
+                # The run's creation time is its writer generation. Finishing
+                # an older interrupted run must not supersede a newer live run,
+                # even when its remaining HTTP response arrives later.
+                observed_at = min(observed_at, run["created_at"])
+                previous = (
+                    indexed
+                    if not indexed or indexed.get("collected_at", "") <= observed_at
+                    else None
+                )
                 changed = previous is None or previous["content_hash"] != reference["content_hash"]
                 if not changed:
                     # Keep the first snapshot's raw lineage for identical document content.
@@ -357,9 +395,9 @@ def _collect_locked(
                 reference["previous_snapshot_id"] = previous["snapshot_id"] if previous else None
                 run["documents"].append(reference)
                 # Resuming an older run must not roll back a newer observation.
-                if not previous or previous.get("collected_at", "") <= run["created_at"]:
+                if not indexed or indexed.get("collected_at", "") <= observed_at:
                     index[key] = reference | {
-                        "collected_at": run["created_at"],
+                        "collected_at": observed_at,
                         "run_id": run["run_id"],
                     }
         except (httpx.HTTPError, IngestionError, ValueError) as exc:
@@ -392,6 +430,132 @@ def _collect_locked(
     return run
 
 
+def replay_collection(store, run_id, *, registry=None, on_started=None):
+    return _reprocess_collection(store, run_id, registry=registry, on_started=on_started)
+
+
+def repair_collection(
+    store, run_id, *, registry=None, on_started=None, rss_client=None, operation_id=None
+):
+    """Explicit new run: reuse successes, fetch cache misses with a new bounded budget."""
+    return _reprocess_collection(
+        store,
+        run_id,
+        registry=registry,
+        on_started=on_started,
+        repair=True,
+        rss_client=rss_client,
+        operation_id=operation_id,
+    )
+
+
+def _reprocess_collection(
+    store,
+    run_id,
+    *,
+    registry=None,
+    on_started=None,
+    repair=False,
+    rss_client=None,
+    operation_id=None,
+):
+    """Reparse a frozen capture into a NEW collection. Cache misses remain gaps.
+
+    The old manifest and source responses are immutable. This deliberately uses
+    the current parser, with fresh result checkpoints, and makes no HTTP client.
+    """
+    from healthlab.signal.backup import object_references, references
+    from healthlab.signal.html_sources import checkpoint_identity
+
+    storage = collection_storage(store)
+    with storage.state.lock():
+        previous = storage.load(run_id)
+        if previous.get("mode") != "signal_collection" or previous["status"] == "running":
+            raise ValueError("Replay requires a finished collection")
+        registry = registry or Registry.model_validate(previous["registry"])
+        if any(s.kind != "html" for s in registry.sources if s.enabled):
+            raise ValueError("Replay supports HTML/API sources only")
+        pending, verified = list(references(previous)), set()
+        while pending:
+            digest = pending.pop()
+            if digest not in verified:
+                pending.extend(object_references(storage.read(digest)))
+                verified.add(digest)
+        mindate, maxdate = (
+            date.fromisoformat(previous["question"][k]) for k in ("mindate", "maxdate")
+        )
+        run = storage.new("signal_collection", previous["question"])
+        run.update(
+            source_checks=[],
+            registry=registry.model_dump(),
+            stage="collection",
+            parser_version=COLLECTION_VERSION,
+            html_parser_version=HTML_PARSER_VERSION,
+            fetch_policy=previous["fetch_policy"],
+            candidate_history=previous.get("candidate_history", {}),
+            observed_at=previous.get("observed_at", previous["created_at"]),
+        )
+        if operation_id is not None:
+            run["operation_id"] = operation_id
+        run["repair_of_manifest_sha256" if repair else "replay_of_manifest_sha256"] = storage.put(
+            json_bytes(previous)
+        )
+        for source in registry.sources:
+            if not source.enabled:
+                continue
+            check = next(
+                (c for c in previous["source_checks"] if c["source_id"] == source.source_id), {}
+            )
+            checkpoint = (
+                json.loads(storage.read(check["checkpoint_sha256"]))
+                if check.get("checkpoint_sha256")
+                else {}
+            )
+            if repair:
+                # Explicit repair grants a new bounded session only for an
+                # unfinished public WebForms inventory. Completed captures replay.
+                if not checkpoint.get("hcm_search_state", {}).get("completed"):
+                    checkpoint.pop("hcm_search_state", None)
+                gates = dict(checkpoint.get("retry_gates", {}))
+                for attempt in checkpoint.get("http_attempts", []):
+                    if attempt.get("retry_not_before"):
+                        gates[attempt.get("request_key", attempt["url"])] = {
+                            "retry_not_before": attempt["retry_not_before"]
+                        }
+                checkpoint["retry_gates"] = gates
+                checkpoint["http_attempts"] = []
+            for response in checkpoint.get("responses", {}).values():
+                response.setdefault("captured_at", run["observed_at"])
+            checkpoint.update(
+                version="html-checkpoint-1",
+                identity=checkpoint_identity(source, mindate, maxdate),
+                results={},
+                responses=checkpoint.get("responses", {}),
+                http_attempts=checkpoint.get("http_attempts", []),
+            )
+            run["source_checks"].append(
+                {
+                    "source_id": source.source_id,
+                    "required": source.required,
+                    "checked_at": utc_now(),
+                    "status": "running",
+                    "errors": [],
+                    "checkpoint_sha256": storage.put(json_bytes(checkpoint)),
+                }
+            )
+        run["configuration_hash"] = _configuration(run)
+        storage.save(run)
+        if on_started:
+            on_started(run["run_id"])
+        owned = repair and rss_client is None
+        client = source_client() if owned else rss_client
+        try:
+            return _collect_locked(storage, store, run, registry, mindate, maxdate, client, None)
+        finally:
+            if owned:
+                client.close()
+
+
 def collection_status(store, run_id):
     storage = collection_storage(store)
     # Run saves are atomic snapshots. Do not block behind the collection writer's
@@ -415,7 +579,11 @@ def collection_status(store, run_id):
                 "checkpointed_articles": len(checkpoint.get("results", {})),
                 "http_attempts": len(checkpoint.get("http_attempts", [])),
                 "deferred_urls": check.get("deferred_urls", []),
-                "errors": check.get("errors", []) + check.get("item_errors", []),
+                "errors": check.get("errors", [])
+                + check.get("listing_gaps", [])
+                + check.get("item_errors", []),
+                "deferred_listing_urls": check.get("deferred_listing_urls", []),
+                "historical_candidates_revisited": check.get("historical_candidates_revisited", []),
                 "coverage_complete": check.get("coverage_complete", False),
             }
         )

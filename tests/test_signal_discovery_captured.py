@@ -23,7 +23,9 @@ from tests.test_signal_collector_regressions import captured
 )
 def test_actual_listing_contracts(tmp_path, name, source_id, count, expected_gap):
     raw, url = captured(name)
-    registry = Registry.model_validate_json(Path("config/signal_sources.json").read_bytes())
+    registry = Registry.model_validate_json(
+        Path("tests/fixtures/signal_html/population_registry_legacy.json").read_bytes()
+    )
     original = next(s for s in registry.sources if s.source_id == source_id)
     config = original.model_dump()
     config["url"] = url

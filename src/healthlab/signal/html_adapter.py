@@ -11,7 +11,7 @@ from healthlab.signal.html_rules import HTMLSourceRules
 from healthlab.signal.html_tree import ArticleTree
 from healthlab.signal.source_probe import topic_hint
 
-PARSER_VERSION = "official-html-4"
+PARSER_VERSION = "official-html-7"
 
 
 def parse_day(value, date_format):
@@ -102,10 +102,15 @@ class ConfiguredHTMLAdapter:
     def listing_dates(self, raw, listing_url):
         return _listing_dates(raw, listing_url, self)
 
+    def listing_date_values(self, raw, listing_url):
+        return _listing_dates(raw, listing_url, self, keep_conflicts=True)
+
 
 def iso_day(value):
     try:
-        return date.fromisoformat(value[:10])
+        return (
+            date.fromisoformat(value) if len(value) == 10 else datetime.fromisoformat(value).date()
+        )
     except (ValueError, TypeError):
         raise IngestionError("html_date_invalid", "Publication date is invalid") from None
 
@@ -304,7 +309,7 @@ def _parse_article(raw, rules, *, url=None):
     }
 
 
-def _listing_dates(raw, listing_url, adapter):
+def _listing_dates(raw, listing_url, adapter, *, keep_conflicts=False):
     """Bind a visible timestamp only to a container identifying one unique article URL."""
     found = {}
     rule = adapter.rules.listing_date
@@ -338,4 +343,8 @@ def _listing_dates(raw, listing_url, adapter):
                 if url in found:
                     break
             parent = parent.parent
-    return {url: next(iter(values)) for url, values in found.items() if len(values) == 1}
+    return (
+        found
+        if keep_conflicts
+        else {url: next(iter(values)) for url, values in found.items() if len(values) == 1}
+    )

@@ -1,6 +1,7 @@
 """Evidence-backed agent proposals, kept distinct from human editorial labels."""
 
 import json
+import re
 from datetime import date
 from typing import Literal
 from urllib.parse import urlsplit
@@ -56,6 +57,36 @@ def _host(url):
     return (urlsplit(url).hostname or "").removeprefix("www.")
 
 
+def verification_attribution(document):
+    """Literal source footers for researched proposals, including bare domains.
+
+    Keep legacy model prompt/gate inputs unchanged so saved v6/v11 traces remain
+    replayable. A bare publisher domain establishes attribution, never an article
+    match: the existing shared-passage and external-capture checks still apply.
+    """
+    found = source_attribution(document)
+    offset = max(0, len(document.text) - 1000)
+    for match in re.finditer(
+        r"(?:nguồn|source)\s*:\s*((?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+"
+        r"[a-z]{2,})(?=$|[\s),;.!])",
+        document.text[offset:],
+        re.I,
+    ):
+        url = "https://" + match[1].lower() + "/"
+        found.append(
+            {
+                "url": url,
+                "start": offset + match.start(),
+                "end": offset + match.end(),
+                "quote": match[0],
+                "external": _host(url) != _host(document.url),
+                "homepage_only": True,
+                "original_article_verified": False,
+            }
+        )
+    return found
+
+
 def validate_verification(storage, bundle, *, triage_id, input_sha256, documents, window):
     """Check identity, capture lineage and literal support; semantics remain agent judgments."""
     if bundle.triage_run_id != triage_id or bundle.input_sha256 != input_sha256:
@@ -102,7 +133,7 @@ def validate_verification(storage, bundle, *, triage_id, input_sha256, documents
             original = decision.original_source_url
             if urlsplit(original).path in {"", "/"}:
                 raise ValueError("Publisher homepage is not an original article")
-            attributions = source_attribution(document)
+            attributions = verification_attribution(document)
             if not any(_host(a["url"]) == _host(original) for a in attributions):
                 raise ValueError("Original article must match the attributed publisher")
             matches = [
