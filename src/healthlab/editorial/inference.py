@@ -96,8 +96,11 @@ def run_calls(store, run_id, provider, *, role="classify", workers=3, max_calls=
                 elif role == "review":
                     units, _ = passage_inputs(row, version=run["version"])
                     model = (
-                        ContextReview if run["version"] in CONTEXT_CONTRACTS
-                        else CitationReview if run["version"] == "gold-editorial-13" else SemanticReview
+                        ContextReview
+                        if run["version"] in CONTEXT_CONTRACTS
+                        else CitationReview
+                        if run["version"] == "gold-editorial-13"
+                        else SemanticReview
                     )
                     model.model_validate(payload)
                     result = validate_review(

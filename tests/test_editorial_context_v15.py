@@ -77,7 +77,10 @@ def test_quote_found_once_in_another_attached_passage_is_rebound():
         (bind("P1", "Bộ Y tế ... 60 tuổi"), "ellipsis_or_joined_fragments"),
         (bind("P1", "Bộ Y tế…tuổi"), "ellipsis_or_joined_fragments"),
         (bind("P1", "t"), "ambiguous_in_bound_passage"),
-        (bind("P2", "y"), "ambiguous_in_attached_support"),  # absent from P2; P1 and P3 both contain it
+        (
+            bind("P2", "y"),
+            "ambiguous_in_attached_support",
+        ),  # absent from P2; P1 and P3 both contain it
     ],
 )
 def test_unrepairable_binding_drops_only_that_facet(binding, reason):
@@ -162,7 +165,9 @@ def test_dropped_needed_facet_withholds_release_through_review():
     downgraded = validate_review(review(), p, IDS, WINDOW)
     assert downgraded["context_assessments"][0]["population"] == "missing"
     assert not downgraded["newsletter_eligible"]
-    held = validate_review(review(context_assessments=[assessment(population="missing")]), p, IDS, WINDOW)
+    held = validate_review(
+        review(context_assessments=[assessment(population="missing")]), p, IDS, WINDOW
+    )
     assert not held["newsletter_eligible"]
     assert "context_support_incomplete" in review_gate(p, held, IDS, WINDOW)["reasons"]
 
@@ -183,7 +188,9 @@ def test_a_dropped_facet_on_one_fact_does_not_block_a_complete_sibling():
     r = review(
         context_assessments=[
             assessment(),
-            assessment(1, actor="missing", document="missing", population="missing", status="missing"),
+            assessment(
+                1, actor="missing", document="missing", population="missing", status="missing"
+            ),
         ]
     )
     assert validate_review(r, p, IDS, WINDOW)["newsletter_eligible"]
@@ -209,7 +216,11 @@ def ceremony_fact(link):
 
 
 def test_rationale_with_an_inferred_year_or_other_day_drops_the_date_link():
-    link = dict(kind="cross_passage", candidate_id="D1", rationale="Lễ diễn ra ngày 24/10/2026 tại bệnh viện.")
+    link = dict(
+        kind="cross_passage",
+        candidate_id="D1",
+        rationale="Lễ diễn ra ngày 24/10/2026 tại bệnh viện.",
+    )
     p = canonical(ceremony_fact(link), CEREMONY)
     fact = p["resolved_facts"][0]
     assert fact["event_date"] is None and fact["date_evidence"] is None
@@ -218,7 +229,9 @@ def test_rationale_with_an_inferred_year_or_other_day_drops_the_date_link():
 
 
 def test_range_endpoint_date_is_flagged_for_review_only_in_v15():
-    link = dict(kind="cross_passage", candidate_id="D1", rationale="Cùng buổi lễ kỷ niệm của bệnh viện.")
+    link = dict(
+        kind="cross_passage", candidate_id="D1", rationale="Cùng buổi lễ kỷ niệm của bệnh viện."
+    )
     p = canonical(ceremony_fact(link), CEREMONY)
     assert p["resolved_facts"][0]["event_date"] == "2026-10-27"
     assert fact_date_checks(p, WINDOW)[0]["date_is_range_endpoint"] is True
@@ -234,8 +247,14 @@ def test_range_endpoint_date_is_flagged_for_review_only_in_v15():
 @pytest.mark.parametrize(
     ("link", "expected"),
     [
-        (dict(kind="same_passage", candidate_id="D1"), ("date_link", "dropped", "cross_passage_without_rationale")),
-        (dict(kind="cross_passage", candidate_id="D9", rationale="x"), ("date_link", "dropped", "unknown_candidate")),
+        (
+            dict(kind="same_passage", candidate_id="D1"),
+            ("date_link", "dropped", "cross_passage_without_rationale"),
+        ),
+        (
+            dict(kind="cross_passage", candidate_id="D9", rationale="x"),
+            ("date_link", "dropped", "unknown_candidate"),
+        ),
     ],
 )
 def test_structurally_wrong_date_link_drops_only_the_link(link, expected):
@@ -315,7 +334,9 @@ def test_v15_prompts_default_to_null_and_name_repairs():
     assert ed.VERSION == V15 and "gold-editorial-14" in ed.READ_VERSIONS
 
 
-def test_native_v15_run_repairs_instead_of_failing_and_packet_keeps_the_record(tmp_path, monkeypatch):
+def test_native_v15_run_repairs_instead_of_failing_and_packet_keeps_the_record(
+    tmp_path, monkeypatch
+):
     value = dict(
         raw(),
         relevance_passage_id="P2",
@@ -378,4 +399,19 @@ def test_whitespace_only_cross_passage_rationale_is_a_schema_error():
 
     with pytest.raises(ValidationError):
         CrossPassageDate(kind="cross_passage", candidate_id="D1", rationale="  ")
-    assert CrossPassageDate(kind="cross_passage", candidate_id="D1", rationale="Cùng hội nghị").rationale
+    assert CrossPassageDate(
+        kind="cross_passage", candidate_id="D1", rationale="Cùng hội nghị"
+    ).rationale
+
+
+def test_provider_schema_uses_only_anchored_patterns():
+    # FPT returned HTTP 400 for the v15 schema while it carried `"pattern": "\\S"`.
+    import json
+    import re
+
+    from healthlab.editorial.contracts import ContextReferenceProposal
+
+    patterns = re.findall(
+        r'"pattern": "([^"]*)"', json.dumps(ContextReferenceProposal.model_json_schema())
+    )
+    assert patterns and all(p.startswith("^") and p.endswith("$") for p in patterns)

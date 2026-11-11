@@ -114,7 +114,9 @@ def repair_binding(binding, spans):
         else:
             hits = [(span, *m) for span in spans for m in _folded_matches(quote, span)]
             if len(hits) != 1:
-                reason = "ambiguous_in_attached_support" if hits else "not_found_in_attached_support"
+                reason = (
+                    "ambiguous_in_attached_support" if hits else "not_found_in_attached_support"
+                )
                 return None, "dropped", reason
             found, action = hits[0], "rebound"
     span, start, end = found
@@ -132,7 +134,9 @@ def repair_context(value, spans, fact_index):
     context = FactContext.model_validate(value).model_dump()
     result, repairs = {}, []
     for facet, binding in context.items():
-        result[facet], action, reason = (None, None, None) if binding is None else repair_binding(binding, spans)
+        result[facet], action, reason = (
+            (None, None, None) if binding is None else repair_binding(binding, spans)
+        )
         if action:
             repairs.append(dict(fact_index=fact_index, field=facet, action=action, reason=reason))
     return result, repairs
@@ -160,7 +164,9 @@ def validate_context(value, spans, *, max_chars=None):
     if max_chars and any(b and len(b["quote"]) > max_chars for b in resolved.values()):
         raise ValueError("Context binding is longer than a context phrase")
     raw = {
-        facet: ({k: v for k, v in binding.items() if k in {"passage_id", "quote"}} if binding else None)
+        facet: (
+            {k: v for k, v in binding.items() if k in {"passage_id", "quote"}} if binding else None
+        )
         for facet, binding in resolved.items()
     }
     if resolved != resolve_context(raw, spans):
@@ -169,7 +175,9 @@ def validate_context(value, spans, *, max_chars=None):
 
 
 _RANGE = r"\s*(?:[-–—]|đến|tới)\s*"
-_NUMERIC_DATE = re.compile(r"(?<![\d/.-])(\d{1,2})\s*[/.-]\s*(\d{1,2})(?:\s*[/.-]\s*(\d{4}))?(?!\d|\s*%)")
+_NUMERIC_DATE = re.compile(
+    r"(?<![\d/.-])(\d{1,2})\s*[/.-]\s*(\d{1,2})(?:\s*[/.-]\s*(\d{4}))?(?!\d|\s*%)"
+)
 _WORDED_DATE = re.compile(r"ngày\s+(\d{1,2})\s+tháng\s+(\d{1,2})(?:\s*(?:năm|,)\s*(\d{4}))?", re.I)
 
 

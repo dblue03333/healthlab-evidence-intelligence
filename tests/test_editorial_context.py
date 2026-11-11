@@ -43,21 +43,24 @@ def context(**updates):
 
 
 def raw(**fact_updates):
-    fact = dict(
-        statement=(
-            "Dự thảo sàng lọc của Bộ Y tế, được họp ngày 10/10/2026, đề xuất sàng lọc "
-            "sa sút trí tuệ, nguy cơ ngã và loãng xương cho người từ 60 tuổi."
-        ),
-        passage_id="P2",
-        supporting_passage_ids=["P1", "P3"],
-        context=context(),
-        date_link=dict(
-            kind="cross_passage",
-            candidate_id="D1",
-            rationale="P1 nêu cuộc họp ngày 10/10/2026 về chính dự thảo được mô tả ở P2.",
-        ),
-        reported_status="proposed",
-    ) | fact_updates
+    fact = (
+        dict(
+            statement=(
+                "Dự thảo sàng lọc của Bộ Y tế, được họp ngày 10/10/2026, đề xuất sàng lọc "
+                "sa sút trí tuệ, nguy cơ ngã và loãng xương cho người từ 60 tuổi."
+            ),
+            passage_id="P2",
+            supporting_passage_ids=["P1", "P3"],
+            context=context(),
+            date_link=dict(
+                kind="cross_passage",
+                candidate_id="D1",
+                rationale="P1 nêu cuộc họp ngày 10/10/2026 về chính dự thảo được mô tả ở P2.",
+            ),
+            reported_status="proposed",
+        )
+        | fact_updates
+    )
     return dict(
         relevance="relevant",
         topics=["aging_society"],

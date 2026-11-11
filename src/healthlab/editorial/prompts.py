@@ -181,7 +181,9 @@ check cannot certify citation completeness. Keep genuine topic/date/origin/statu
         # V13 instructions remain byte-identical; v14 replaces the date-field section.
         start = instruction.index("The server resolves exact quotes and offsets.")
         end = instruction.index("Never attach a document's old effective date", start)
-        instruction = instruction[:start] + """The server resolves exact quotes and offsets.
+        instruction = (
+            instruction[:start]
+            + """The server resolves exact quotes and offsets.
 Use date_link=null when the event is undated or its link is uncertain.
 For a literal candidate in the PRIMARY passage use
 date_link={"kind":"same_passage","candidate_id":"D..."}.
@@ -190,8 +192,13 @@ date_link={"kind":"cross_passage","candidate_id":"D...","rationale":"..."}.
 The cross_passage rationale MUST identify the same event, actor/action and date role;
 a date in additional supporting_passage_ids is still cross_passage relative to the primary.
 Never output the old event_date_candidate_id, date_context_passage_id or date_link_rationale fields.
-""" + instruction[end:]
-        instruction = instruction.replace("date_link_rationale rule relative to the primary passage", "typed cross_passage date_link rule relative to the primary passage")
+"""
+            + instruction[end:]
+        )
+        instruction = instruction.replace(
+            "date_link_rationale rule relative to the primary passage",
+            "typed cross_passage date_link rule relative to the primary passage",
+        )
         instruction += """
 Each fact MUST have context with actor, document, population and status keys.
 Each non-null value is {"passage_id":"P...","quote":"exact short substring"} from

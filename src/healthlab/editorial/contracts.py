@@ -180,7 +180,14 @@ class SamePassageDate(Contract):
 class CrossPassageDate(Contract):
     kind: Literal["cross_passage"]
     candidate_id: str = Field(pattern=r"^D[1-9]\d*$")
-    rationale: str = Field(min_length=1, max_length=900, pattern=r"\S")
+    # Checked server-side: FPT rejects (HTTP 400) a schema with an unanchored `pattern`.
+    rationale: str = Field(min_length=1, max_length=900)
+
+    @model_validator(mode="after")
+    def non_blank_rationale(self):
+        if not self.rationale.strip():
+            raise ValueError("Blank cross-passage date rationale")
+        return self
 
 
 class ContextIDFact(Contract):
@@ -190,8 +197,15 @@ class ContextIDFact(Contract):
     context: FactContext
     date_link: Annotated[SamePassageDate | CrossPassageDate, Field(discriminator="kind")] | None
     reported_status: Literal[
-        "proposed", "announced", "adopted", "effective", "pilot", "operational",
-        "published_report", "not_applicable", "unknown",
+        "proposed",
+        "announced",
+        "adopted",
+        "effective",
+        "pilot",
+        "operational",
+        "published_report",
+        "not_applicable",
+        "unknown",
     ]
 
 
@@ -212,7 +226,12 @@ class RepairedContextArticleProposal(ContextArticleProposal):
 
 
 def passage_policy(version):
-    if version in {"gold-editorial-11", "gold-editorial-12", "gold-editorial-13", *CONTEXT_CONTRACTS}:
+    if version in {
+        "gold-editorial-11",
+        "gold-editorial-12",
+        "gold-editorial-13",
+        *CONTEXT_CONTRACTS,
+    }:
         return PASSAGE_POLICY
     if version in READ_VERSIONS:
         return "editorial-passages-1"
@@ -304,22 +323,34 @@ def resolve_reference_ids(payload, article, *, version=VERSION):
             if repair and link:
                 cross = selected is not None and selected["passage_id"] != fact["passage_id"]
                 dropped = (
-                    "unknown_candidate" if selected is None
+                    "unknown_candidate"
+                    if selected is None
                     else "rationale_names_other_date"
                     if rationale_date_conflict(link.get("rationale"), selected["date"])
-                    else "cross_passage_without_rationale" if cross and link["kind"] == "same_passage"
+                    else "cross_passage_without_rationale"
+                    if cross and link["kind"] == "same_passage"
                     else None
                 )
                 if dropped:
-                    repairs.append(dict(fact_index=index, field="date_link", action="dropped", reason=dropped))
+                    repairs.append(
+                        dict(fact_index=index, field="date_link", action="dropped", reason=dropped)
+                    )
                     link = selected = None
                 elif not cross and link["kind"] == "cross_passage":
-                    repairs.append(dict(fact_index=index, field="date_link", action="retyped",
-                                        reason="candidate_in_primary_passage"))
+                    repairs.append(
+                        dict(
+                            fact_index=index,
+                            field="date_link",
+                            action="retyped",
+                            reason="candidate_in_primary_passage",
+                        )
+                    )
                     link = dict(link, kind="same_passage")
             if link and selected is None:
                 raise ValueError("Unknown event date candidate")
-            if link and (link["kind"] == "same_passage") != (selected["passage_id"] == fact["passage_id"]):
+            if link and (link["kind"] == "same_passage") != (
+                selected["passage_id"] == fact["passage_id"]
+            ):
                 raise ValueError("Date link kind differs from selected passage")
             fact["event_date_candidate_id"] = link["candidate_id"] if link else None
             fact["date_link_rationale"] = link.get("rationale") if link else None
@@ -379,9 +410,13 @@ class EditorialDraft(Contract):
 def canonical_proposal(value, article, window, *, version=VERSION):
     contract = CONTEXT_CONTRACTS.get(version)
     model = (
-        RepairedContextArticleProposal if contract == "fact-context-2"
-        else ContextArticleProposal if contract
-        else SupportedArticleProposal if version == "gold-editorial-13" else ArticleProposal
+        RepairedContextArticleProposal
+        if contract == "fact-context-2"
+        else ContextArticleProposal
+        if contract
+        else SupportedArticleProposal
+        if version == "gold-editorial-13"
+        else ArticleProposal
     )
     p = model.model_validate(value)
     body = article["body"]
@@ -410,7 +445,8 @@ def canonical_proposal(value, article, window, *, version=VERSION):
                 raise ValueError("Primary quote differs from first supporting passage")
             if isinstance(fact, ContextEvidenceFact):
                 validate_context(
-                    fact.context.model_dump(), spans,
+                    fact.context.model_dump(),
+                    spans,
                     max_chars=MAX_CONTEXT_CHARS if contract == "fact-context-2" else None,
                 )
             start = spans[0]["start"]

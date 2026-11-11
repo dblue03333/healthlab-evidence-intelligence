@@ -210,13 +210,20 @@ def supported_development(proposal, review, window):
 def validate_review(payload, proposal, passage_ids, window=None):
     contextual = payload.get("review_version") == "editorial-review-6"
     citations = payload.get("review_version") in {"editorial-review-5", "editorial-review-6"}
-    current = payload.get("review_version") in {"editorial-review-4", "editorial-review-5", "editorial-review-6"}
-    requires_context = proposal.get("context_contract") in {"fact-context-1", "fact-context-2"} or any(
-        "context" in f for f in proposal["facts"]
-    )
+    current = payload.get("review_version") in {
+        "editorial-review-4",
+        "editorial-review-5",
+        "editorial-review-6",
+    }
+    requires_context = proposal.get("context_contract") in {
+        "fact-context-1",
+        "fact-context-2",
+    } or any("context" in f for f in proposal["facts"])
     if requires_context != contextual:
         raise ValueError("Context proposal requires matching context review")
-    semantic_model = ContextReview if contextual else CitationReview if citations else SemanticReview
+    semantic_model = (
+        ContextReview if contextual else CitationReview if citations else SemanticReview
+    )
     review_model = ReviewedContext if contextual else ReviewedCitations if citations else Review
     supplied_eligibility = payload.get("newsletter_eligible")
     if current:
@@ -231,7 +238,9 @@ def validate_review(payload, proposal, passage_ids, window=None):
         raise ValueError("Citation review requires explicit fact support passages")
     if contextual:
         assessments = {a.fact_index: a for a in review.context_assessments}
-        if len(assessments) != len(review.context_assessments) or set(assessments) != set(range(len(proposal["facts"]))):
+        if len(assessments) != len(review.context_assessments) or set(assessments) != set(
+            range(len(proposal["facts"]))
+        ):
             raise ValueError("Context review needs exactly one assessment per fact")
         # A verdict that contradicts the attached binding (supported on a null facet,
         # not_applicable on a bound one) withholds only that fact: it becomes "missing"
@@ -304,10 +313,9 @@ def review_gate(proposal, review, passage_ids, window=None):
         return {"eligible": False, "reasons": ["review_missing"]}
     if review.get("review_version") not in READ_REVIEW_VERSIONS:
         return {"eligible": False, "reasons": ["legacy_review_requires_explicit_assessment"]}
-    if (
-        any("supporting_passages" in f for f in proposal["facts"])
-        and review.get("review_version") not in {"editorial-review-5", "editorial-review-6"}
-    ):
+    if any("supporting_passages" in f for f in proposal["facts"]) and review.get(
+        "review_version"
+    ) not in {"editorial-review-5", "editorial-review-6"}:
         return {"eligible": False, "reasons": ["citation_review_required"]}
     try:
         value = validate_review(review, proposal, passage_ids, window)
