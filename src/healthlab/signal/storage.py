@@ -29,6 +29,7 @@ class CollectionState(Protocol):
     def new(self, mode: str, question: dict) -> dict: ...
     def load(self, run_id: str) -> dict: ...
     def save(self, run: dict) -> None: ...
+    def list_runs(self, mode: str) -> list[str]: ...
     def load_index(self) -> dict: ...
     def commit(self, run: dict, index: dict) -> None:
         """Publish run and document index together, under lock()."""
@@ -72,6 +73,14 @@ class LocalCollectionState:
 
     def save(self, run):
         self.store.save(run)
+
+    def list_runs(self, mode):
+        # Read atomic manifests, never infer completion from directory existence.
+        return sorted(
+            path.parent.name
+            for path in (self.root / "runs").glob("*/manifest.json")
+            if self.store.load(path.parent.name).get("mode") == mode
+        )
 
     def load_index(self):
         path = self.root / "signal-index.json"

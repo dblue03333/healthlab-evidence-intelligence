@@ -14,6 +14,7 @@ from healthlab.store import json_bytes, sync_directory
 
 REFERENCE_KEYS = {
     "raw_sha256",
+    "diagnostic_sha256",
     "raw_record_sha256",
     "extraction_sha256",
     "rules_sha256",
@@ -21,6 +22,13 @@ REFERENCE_KEYS = {
     "previous_snapshot_id",
     "checkpoint_sha256",
     "document_sha256",
+    "collection_manifest_sha256",
+    "replay_of_manifest_sha256",
+    "repair_of_manifest_sha256",
+    "bronze_sha256",
+    "silver_sha256",
+    "gold_sha256",
+    "dataset_sha256",
 }
 
 
@@ -87,7 +95,7 @@ def export_collection(store, run_id, destination):
             index = {
                 ref["source_id"] + ":" + ref["document_id"]: ref
                 | {
-                    "collected_at": run["created_at"],
+                    "collected_at": run.get("observed_at", run["created_at"]),
                     "run_id": run_id,
                 }
                 for ref in run["documents"]

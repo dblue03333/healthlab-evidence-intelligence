@@ -41,7 +41,7 @@ class Source(Contract):
     html_profile: Literal["who_news", "moh_population", "hcm_medinet"] | None = None
     html_rules: HTMLSourceRules | None = None
     html_discovery: HTMLDiscoveryRules | None = None
-    html_max_response_bytes: int = Field(default=2_000_000, ge=1000, le=8_000_000)
+    html_max_response_bytes: int = Field(default=2_000_000, ge=1000, le=32_000_000)
     html_media_policy: Literal["review", "text_only"] = "review"
 
     @property
@@ -69,6 +69,42 @@ class Source(Contract):
                 raise ValueError("HTML profile/rules requires its verified official host")
             if self.html_discovery:
                 discovery = self.html_discovery
+                if discovery.hcm_search_inventory and (
+                    rules.host != "medinet.hochiminhcity.gov.vn"
+                    or parsed.path != "/tin-tuc-su-kien-c1780.aspx"
+                    or discovery.wordpress_api_url
+                    or discovery.moh_portal_categories
+                ):
+                    raise ValueError("HCMC search requires its verified host and category")
+                if discovery.who_ageing_widget and (
+                    rules.host != "www.who.int"
+                    or discovery.wordpress_api_url
+                    or discovery.moh_portal_categories
+                    or "https://www.who.int/health-topics/ageing"
+                    not in [self.url] + discovery.additional_listing_urls
+                ):
+                    raise ValueError("WHO Ageing widget requires its verified host and landing")
+                if discovery.who_speeches_api and (
+                    rules.host != "www.who.int"
+                    or discovery.wordpress_api_url
+                    or discovery.moh_portal_categories
+                    or not any(
+                        urlsplit(u).path.startswith("/vietnam/news/speeches")
+                        for u in [self.url] + discovery.additional_listing_urls
+                    )
+                ):
+                    raise ValueError(
+                        "WHO speeches supplement requires its verified host and branch"
+                    )
+                if discovery.moh_portal_categories and (
+                    rules.host != "moh.gov.vn"
+                    or discovery.wordpress_api_url
+                    or discovery.additional_listing_urls
+                    or len(discovery.moh_portal_categories) > discovery.max_listing_pages
+                ):
+                    raise ValueError(
+                        "Ministry portal requires its official host and category budget"
+                    )
                 if discovery.wordpress_api_url:
                     public_url(discovery.wordpress_api_url)
                     endpoint = urlsplit(discovery.wordpress_api_url)

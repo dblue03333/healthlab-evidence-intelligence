@@ -27,12 +27,12 @@ def test_v2_event_date_citation_must_support_the_date_even_with_traced_original(
     assert load_triage(store, triage["run_id"])["head"] is None
 
 
-def verified_case(tmp_path, event_date="2026-10-08"):
+def verified_case(tmp_path, event_date="2026-10-08", footer="https://original.example.org/"):
     store, collection = collected(tmp_path)
     doc = next(iter(load_documents(store, collection).values()))
     shared = "The report describes older adults. The announced report concerns their care."
     doc.text = doc.text.replace("The report describes older adults.", shared)
-    doc.text += "\nNguồn: https://original.example.org/"
+    doc.text += "\nNguồn: " + footer
     key = store.put(json_bytes(doc.model_dump()))
     collection["documents"][0]["snapshot_id"] = key
     store.save(collection)
@@ -95,8 +95,9 @@ def verified_case(tmp_path, event_date="2026-10-08"):
     return store, collection, triage, bundle
 
 
-def test_agent_verified_repost_can_feed_unapproved_draft_without_human_labels(tmp_path):
-    store, collection, triage, bundle = verified_case(tmp_path)
+@pytest.mark.parametrize("footer", ["https://original.example.org/", "original.example.org)"])
+def test_agent_verified_repost_can_feed_unapproved_draft_without_human_labels(tmp_path, footer):
+    store, collection, triage, bundle = verified_case(tmp_path, footer=footer)
     result = submit_agent_verification(store, triage["run_id"], bundle, expected_head=None)
     packet = triage_packet(store, triage["run_id"])
     assert packet["counts"]["include"] == 1 and packet["unjudged"] == 1
@@ -221,3 +222,25 @@ def test_agent_cannot_bypass_domestic_geography_gate(tmp_path):
     with pytest.raises(ValueError, match="Domestic scope"):
         submit_agent_verification(store, triage["run_id"], bundle, expected_head=None)
     assert load_triage(store, triage["run_id"])["head"] is None
+
+
+def test_bare_domain_footer_supports_research_verification_without_rewriting_model_traces():
+    from types import SimpleNamespace
+
+    from healthlab.signal.triage import source_attribution
+    from healthlab.signal.verification import verification_attribution
+
+    doc = SimpleNamespace(text="Body. (Nguồn: suckhoedoisong.vn)", url="https://moh.gov.vn/article")
+    assert source_attribution(doc) == []  # Legacy measured prompts/gates stay pinned.
+    found = verification_attribution(doc)
+    assert len(found) == 1 and found[0]["url"] == "https://suckhoedoisong.vn/"
+    assert found[0]["external"] and found[0]["homepage_only"]
+    assert not found[0]["original_article_verified"]
+    assert doc.text[found[0]["start"] : found[0]["end"]] == found[0]["quote"]
+    for text in [
+        "Nguồn: just prose",
+        "Discuss suckhoedoisong.vn without an attribution.",
+        "Nguồn: https://suckhoedoisong.vn/article",
+    ]:
+        doc.text = text
+        assert len(verification_attribution(doc)) == len(source_attribution(doc))

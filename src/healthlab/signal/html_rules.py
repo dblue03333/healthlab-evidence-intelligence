@@ -122,6 +122,7 @@ class HTMLDiscoveryRules(Contract):
     required_query_parameters: dict[str, str] = Field(default_factory=dict)
     drop_query_parameters: list[str] = Field(default_factory=list)
     pagination_selector: ElementSelector | None = None
+    chronological_scope: ElementSelector | None = None
     max_listing_pages: int = Field(default=4, ge=1, le=30)
     upgrade_same_host_http: bool = False
     stop_before_window: bool = False
@@ -129,6 +130,21 @@ class HTMLDiscoveryRules(Contract):
     api_page_size: int = Field(default=50, ge=1, le=100)
     sequential_page_pattern: str | None = None
     skip_outside_window: bool = False
+    moh_portal_categories: list[str] = Field(default_factory=list, max_length=20)
+    portal_inventory_size: int = Field(default=1000, ge=1, le=1000)
+    who_speeches_api: bool = False
+    who_ageing_widget: bool = False
+    hcm_search_inventory: bool = False
+    who_speeches_max_pages: int = Field(default=2, ge=1, le=10)
+
+    @field_validator("moh_portal_categories")
+    @classmethod
+    def portal_categories(cls, values):
+        if len(set(values)) != len(values) or any(
+            not re.fullmatch(r"[1-9][0-9]*", value) for value in values
+        ):
+            raise ValueError("Portal categories must be distinct positive numeric IDs")
+        return values
 
     @field_validator("listing_path_patterns")
     @classmethod
@@ -170,6 +186,7 @@ class HTMLSourceRules(Contract):
     standard_date_metadata: bool = True
     text_dates: list[TextDateRule] = Field(default_factory=list, max_length=20)
     listing_date: ListingDateRule | None = None
+    window_date_policy: Literal["publication", "source_displayed"] = "publication"
 
     @field_validator("host")
     @classmethod

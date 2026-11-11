@@ -101,6 +101,18 @@ class PostgresCollectionState:
     def _connect(self):
         return self.driver.connect(self.dsn, autocommit=True, connect_timeout=10)
 
+    def list_runs(self, mode):
+        with self._safe_database(), self._connect() as connection:
+            self._check_schema(connection)
+            return [
+                row[0]
+                for row in connection.execute(
+                    "SELECT run_id FROM healthlab_signal_runs "
+                    "WHERE namespace=%s AND manifest->>'mode'=%s ORDER BY run_id",
+                    (self.namespace, mode),
+                )
+            ]
+
     def _check_schema(self, connection):
         row = connection.execute(
             "SELECT schema_version, object_location FROM healthlab_signal_storage WHERE namespace=%s",

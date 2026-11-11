@@ -112,5 +112,240 @@
     "collection_run_id": "38763e5620604beaa6ab8822b9f73b70",
     "acquisition": "live_20261017_public_posts_api",
     "purpose": "Publication-window discovery contract only; not gold editorial or factual labels."
+  },
+  {
+    "file": "moh_portal_inventory.json.gz",
+    "source_url": "https://moh.gov.vn/bridge?url=/portal/api/lay_bai_viet_theo_danh_muc",
+    "method": "POST",
+    "request_json": {
+      "CHUYEN_TRANG": "BO_YTE",
+      "NGON_NGU": "TIENG_VIET",
+      "MA_DANH_MUC": "8356",
+      "TYPE": 1,
+      "PAGE_SIZE": 1000,
+      "ISEXTEND": 1
+    },
+    "raw_sha256": "e8f8c14c2dda8601291190a7fbe984e1bc7d483d11c5b5f52757df8aeb2ff304",
+    "captured_at": "2026-10-21",
+    "context": "Public Ministry portal API, unauthenticated read-only request; text only; no media fetch."
+  },
+  {
+    "file": "moh_portal_article.json.gz",
+    "source_url": "https://moh.gov.vn/bridge?url=/portal/api/layChiTietBaiViet",
+    "method": "POST",
+    "request_json": {
+      "maBaiViet": "170358",
+      "maDanhMuc": "8356"
+    },
+    "raw_sha256": "0a58360eff81f0815eb68673698368718bb425e3277bffc1c8cafc4a58a536cc",
+    "captured_at": "2026-10-21",
+    "context": "Public Ministry portal API, unauthenticated read-only request; text only; no media fetch."
+  },
+  {
+    "file": "who_rerun_listing_0.html.gz",
+    "source_url": "https://www.who.int/health-topics/ageing",
+    "raw_sha256": "ae675fa5eec1c97ed487328614f990cf3da10707a891d1a0482d44799fc71708",
+    "captured_at": "2026-10-21",
+    "context": "Live T1 rerun, explicit WHO page-1 seeds and sequential pagination."
+  },
+  {
+    "file": "who_rerun_listing_1.html.gz",
+    "source_url": "https://www.who.int/vietnam/news/releases/1",
+    "raw_sha256": "f65cf76ff763ed03e5857b68d828e0ff55d6b610cbd54397ab8768677be92f8a",
+    "captured_at": "2026-10-21",
+    "context": "Live T1 rerun, explicit WHO page-1 seeds and sequential pagination."
+  },
+  {
+    "file": "who_rerun_listing_2.html.gz",
+    "source_url": "https://www.who.int/vietnam/news/feature-stories/1",
+    "raw_sha256": "1ea6d0961734258f53e36d15281568ffb97f81ca5cf727e94d3c9daf6e813945",
+    "captured_at": "2026-10-21",
+    "context": "Live T1 rerun, explicit WHO page-1 seeds and sequential pagination."
+  },
+  {
+    "file": "who_rerun_listing_3.html.gz",
+    "source_url": "https://www.who.int/vietnam/news/commentaries/1",
+    "raw_sha256": "513b982d15cdd45020b6fd24901000311511dedb2f3449f992ed55320948566c",
+    "captured_at": "2026-10-21",
+    "context": "Live T1 rerun, explicit WHO page-1 seeds and sequential pagination."
+  },
+  {
+    "file": "who_rerun_listing_4.html.gz",
+    "source_url": "https://www.who.int/vietnam/news/speeches/1",
+    "raw_sha256": "19d8d0fc1ff4f08e67723ad77388c38f734acbf4cbe8098f49a499cb18bd36e2",
+    "captured_at": "2026-10-21",
+    "context": "Live T1 rerun, explicit WHO page-1 seeds and sequential pagination."
+  },
+  {
+    "file": "who_rerun_listing_5.html.gz",
+    "source_url": "https://www.who.int/vietnam/news/releases/2",
+    "raw_sha256": "766d4598a662b785b49dc1d13ce3ac517f9329844686327f3af5802370c87c9e",
+    "captured_at": "2026-10-21",
+    "context": "Live T1 rerun, explicit WHO page-1 seeds and sequential pagination."
+  },
+  {
+    "file": "hcm_sidebar_listing_20261026.html.gz",
+    "source_url": "https://medinet.hochiminhcity.gov.vn/tin-tuc-su-kien-c1780.aspx",
+    "raw_sha256": "ff64023f27b994d84f42d6af2a59094e8dd503ae035814cd409ee28a7d1a6363",
+    "captured_at": "2026-10-26T16:58:10.061474+00:00",
+    "purpose": "Regression: dated chronological list plus undated promoted article; updated date must not become publication date."
+  },
+  {
+    "file": "hcm_updated_only_20261026.html.gz",
+    "source_url": "https://medinet.hochiminhcity.gov.vn/tin-tuc-su-kien/tu-thuc-tien-hiep-phuoc-nhan-rong-mo-hinh-doi-cham-soc-suc-khoe-lien-tuc-den-10-c1780-76378.aspx",
+    "raw_sha256": "eb1d9de7d2bc14a5d45e0ba58c03ed5beb730411124c8f884375fa3152133618",
+    "captured_at": "2026-10-26T16:58:10.061474+00:00",
+    "purpose": "Regression: dated chronological list plus undated promoted article; updated date must not become publication date."
+  },
+  {
+    "file": "hcm_coverage_listing_20261027.html.gz",
+    "source_url": "https://medinet.hochiminhcity.gov.vn/tin-tuc-su-kien-c1780.aspx",
+    "raw_sha256": "d476e78e788fc41ae7a84f1e5357402eafb103bca44115fc4541112d09da6452",
+    "acquisition": "live public coverage audit 2026-10-27",
+    "purpose": "Date-range coverage and stale inventory candidate-history regression; not editorial ground truth."
+  },
+  {
+    "file": "hcm_coverage_page2_20261027.html.gz",
+    "source_url": "https://medinet.hochiminhcity.gov.vn/tin-tuc-su-kien-c1780-p2.aspx",
+    "raw_sha256": "d0d535a536ffb2d13bdb46fc3b77010f5ea6d67fa68339b1bbf859e6fa6cab5a",
+    "acquisition": "live public coverage audit 2026-10-27",
+    "purpose": "Bounded chronological traversal and stale listing regression."
+  },
+  {
+    "file": "who_speeches_stale_20261028.html.gz",
+    "source_url": "https://www.who.int/vietnam/news/speeches/1",
+    "raw_sha256": "3587a500bb6b02d6ee89b534e4703644a48a47f61b9f128a394a06bef8121a6e",
+    "captured_at": "2026-10-27T17:36:50.054012+00:00",
+    "acquisition": "live_public_read_only_20261028",
+    "purpose": "Coverage/discovery regression; not factual gold labels."
+  },
+  {
+    "file": "who_speech_20261002.html.gz",
+    "source_url": "https://www.who.int/vietnam/news/speeches/speech/speech-of-dr-angela-pratt-at-the-national-scientific-conference-2026-on-infectious-diseases-and-interventions",
+    "raw_sha256": "8c37d26466ce5416b9abdc82741d9ef4dde8fc78491350493ad624838b824aaf",
+    "captured_at": "2026-10-27T17:36:50.394439+00:00",
+    "acquisition": "live_public_read_only_20261028",
+    "purpose": "Coverage/discovery regression; not factual gold labels."
+  },
+  {
+    "file": "who_speech_20261027.html.gz",
+    "source_url": "https://www.who.int/vietnam/news/speeches/speech/speech-of-dr-angela-pratt-on-nhan-dan-panel--the-young-generation-of-vietnamese-say-no-to-tobacco",
+    "raw_sha256": "c28f6ac5723bdf02804f944dac4e5bcd6d5691769523c8cbecb685ea108c879a",
+    "captured_at": "2026-10-27T17:36:50.294514+00:00",
+    "acquisition": "live_public_read_only_20261028",
+    "purpose": "Coverage/discovery regression; not factual gold labels."
+  },
+  {
+    "file": "who_speeches_api_20261028.json.gz",
+    "source_url": "https://www.who.int/api/news/speeches?sf_culture=en&sf_site=bad9ef31-b8f9-4c48-b98f-345320b3367a&%24filter=PublicationDateAndTime+ge+2026-09-28T00%3A00%3A00Z+and+PublicationDateAndTime+lt+2026-10-28T00%3A00%3A00Z&%24top=100&%24count=true&%24orderby=PublicationDateAndTime+desc&%24select=Id%2CTitle%2CItemDefaultUrl%2CPublicationDateAndTime%2CProvider",
+    "raw_sha256": "7206d4ec64df71d1ad231f54e58beb09b99416178bda2befd784c87fcccf1206",
+    "captured_at": "2026-10-27T17:35:26.840995+00:00",
+    "acquisition": "live_public_read_only_20261028",
+    "purpose": "Coverage/discovery regression; not factual gold labels."
+  },
+  {
+    "file": "moh_embedded_heading_20261028.json.gz",
+    "source_url": "https://moh.gov.vn/bridge?url=/portal/api/layChiTietBaiViet",
+    "request_json": {
+      "maBaiViet": "170667",
+      "maDanhMuc": "8358"
+    },
+    "raw_sha256": "629aeb31dd747414d0cac383e359e0c5b4670fe56abc15c51da67e87634a76af",
+    "captured_at": "2026-10-27T17:32:17.323896+00:00",
+    "acquisition": "pilot_live_20261028",
+    "purpose": "Embedded h1 in literal Ministry body must not replace the API title."
+  },
+  {
+    "file": "who_ageing_widget_20261028.json.gz",
+    "raw_sha256": "e3078d1f77a7282884ff564b5a9227287ba925e45eda2413f683317d74b03859",
+    "source_url": "https://www.who.int/api/news/newsitems?sf_provider=OpenAccessDataProvider&sf_culture=en&$top=3&$orderby=PublicationDateAndTime%20desc&$select=Title,ItemDefaultUrl,FormatedDate,NewsType&$filter=publishingoffices/any(s:s%20eq%2048ddfd0b-6cf8-4498-afc0-e044db8d1c36)",
+    "acquisition": "public_capture_20261028",
+    "audit_id": "AGEING-WIDGET-20261028",
+    "purpose": "Declared Ageing top-three JS widget snapshot, no historical completeness claim"
+  },
+  {
+    "file": "who_ageing_widget_landing_20261028.html.gz",
+    "raw_sha256": "992890d521843630253fff76f677507655ea4fa724e0f44cee057c7dc9a00715",
+    "source_url": "https://www.who.int/health-topics/ageing",
+    "acquisition": "public_capture_20261028",
+    "audit_id": "AGEING-WIDGET-20261028",
+    "purpose": "Declared Ageing top-three JS widget snapshot, no historical completeness claim"
+  },
+  {
+    "file": "hcm_search_page1_20261028.html.gz",
+    "source_url": "https://medinet.hochiminhcity.gov.vn/Search.aspx?key=",
+    "method": "GET",
+    "event_target": null,
+    "event_argument": null,
+    "raw_sha256": "22d6e0e2bc97b387a34b7362cfbe7a980844554691848e45a2502608a6b45f73",
+    "acquisition": "public_same_session_search_20261028",
+    "audit_id": "HCM-SEARCH-1",
+    "purpose": "Blank-key public search; c1780 membership audit, bounded100 result cap, not all-history coverage"
+  },
+  {
+    "file": "hcm_search_page2_20261028.html.gz",
+    "source_url": "https://medinet.hochiminhcity.gov.vn/Search.aspx?key=",
+    "method": "POST",
+    "event_target": "ctl00$plcall$Search1$grvmn",
+    "event_argument": "Page$2",
+    "raw_sha256": "4aabac2fbdd568fcf8768102ced0efa02c794414577f0eac95d5f867d66fe97e",
+    "acquisition": "public_same_session_search_20261028",
+    "audit_id": "HCM-SEARCH-2",
+    "purpose": "Blank-key public search; c1780 membership audit, bounded100 result cap, not all-history coverage"
+  },
+  {
+    "file": "hcm_search_page3_20261028.html.gz",
+    "source_url": "https://medinet.hochiminhcity.gov.vn/Search.aspx?key=",
+    "method": "POST",
+    "event_target": "ctl00$plcall$Search1$grvmn",
+    "event_argument": "Page$3",
+    "raw_sha256": "6dcae34222876b00931886c432773a4cda25eb57e400b6dfef19243cdcf6c16a",
+    "acquisition": "public_same_session_search_20261028",
+    "audit_id": "HCM-SEARCH-3",
+    "purpose": "Blank-key public search; c1780 membership audit, bounded100 result cap, not all-history coverage"
+  },
+  {
+    "file": "hcm_search_page4_20261028.html.gz",
+    "source_url": "https://medinet.hochiminhcity.gov.vn/Search.aspx?key=",
+    "method": "POST",
+    "event_target": "ctl00$plcall$Search1$grvmn",
+    "event_argument": "Page$4",
+    "raw_sha256": "490b79619ce6a871a72f3bcf1c8f0308485fa7b222696891f74e698be7cd6f3d",
+    "acquisition": "public_same_session_search_20261028",
+    "audit_id": "HCM-SEARCH-4",
+    "purpose": "Blank-key public search; c1780 membership audit, bounded100 result cap, not all-history coverage"
+  },
+  {
+    "file": "hcm_search_page5_20261028.html.gz",
+    "source_url": "https://medinet.hochiminhcity.gov.vn/Search.aspx?key=",
+    "method": "POST",
+    "event_target": "ctl00$plcall$Search1$grvmn",
+    "event_argument": "Page$5",
+    "raw_sha256": "e0e76ecdb7179a9ddc2c20e3018a514a52f570ea70c1cb3d3ab42614a13abafa",
+    "acquisition": "public_same_session_search_20261028",
+    "audit_id": "HCM-SEARCH-5",
+    "purpose": "Blank-key public search; c1780 membership audit, bounded100 result cap, not all-history coverage"
+  },
+  {
+    "file": "hcm_search_page6_20261028.html.gz",
+    "source_url": "https://medinet.hochiminhcity.gov.vn/Search.aspx?key=",
+    "method": "POST",
+    "event_target": "ctl00$plcall$Search1$grvmn",
+    "event_argument": "Page$6",
+    "raw_sha256": "3b051427472835753a894a949c062ade1806b5a21bcd584e421de758d78066d0",
+    "acquisition": "public_same_session_search_20261028",
+    "audit_id": "HCM-SEARCH-6",
+    "purpose": "Blank-key public search; c1780 membership audit, bounded100 result cap, not all-history coverage"
+  },
+  {
+    "file": "hcm_search_page7_20261028.html.gz",
+    "source_url": "https://medinet.hochiminhcity.gov.vn/Search.aspx?key=",
+    "method": "POST",
+    "event_target": "ctl00$plcall$Search1$grvmn",
+    "event_argument": "Page$7",
+    "raw_sha256": "02886933f63845a153bee8ae05e3bfbb4e7807509b13edcbb12aa4505bf42f49",
+    "acquisition": "public_same_session_search_20261028",
+    "audit_id": "HCM-SEARCH-7",
+    "purpose": "Blank-key public search; c1780 membership audit, bounded100 result cap, not all-history coverage"
   }
 ]

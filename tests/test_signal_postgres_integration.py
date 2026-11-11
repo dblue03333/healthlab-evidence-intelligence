@@ -109,3 +109,70 @@ def test_lost_postgres_writer_connection_cannot_continue_unlocked():
     contender = PostgresCollectionState(DSN, state.namespace, state.object_location)
     with contender.lock():
         assert contender.load(run["run_id"])["status"] == "running"
+
+
+def test_real_postgres_dataset_history_and_portable_export(tmp_path):
+    from healthlab.data.bundle import export_dataset, verify_export
+    from healthlab.data.datasets import build_dataset, gold_records
+
+    storage = CollectionStorage(MemoryObjects(), state_for())
+    with client_for(lambda r: ok(LISTING if r.url.path == "/" else article())) as client:
+        first = collect(
+            storage,
+            registry(),
+            **DATES,
+            rss_client=client,
+            fetch_policy=POLICY,
+            remember_candidates=True,
+        )
+    # The second listing drops one link. Shared PG history must recover it just
+    # as the local filesystem adapter does, without relying on store.root.
+    with client_for(
+        lambda r: ok(b'<a href="/news/item/a">First</a>' if r.url.path == "/" else article())
+    ) as client:
+        second = collect(
+            storage,
+            registry(),
+            **DATES,
+            rss_client=client,
+            fetch_policy=POLICY,
+            remember_candidates=True,
+        )
+    assert set(storage.state.list_runs("signal_collection")) == {first["run_id"], second["run_id"]}
+    result = build_dataset(storage, second["run_id"])
+    assert result["status"] == "ready" and len(gold_records(storage, result["dataset_id"])) == 2
+    assert result["sources"][0]["recovered_from_history"] == 1
+    assert len(storage.state.list_runs("signal_dataset")) == 1
+    export_dataset(storage, result["dataset_id"], tmp_path / "export")
+    assert verify_export(tmp_path / "export")["verified"]
+
+
+def test_real_postgres_silver_v2_preserves_displayed_date_through_replay_and_export(tmp_path):
+    from healthlab.data.bundle import export_dataset, verify_export
+    from healthlab.data.datasets import build_dataset, gold_records, read_dataset
+    from healthlab.signal.collection import replay_collection
+    from tests.test_data_pipeline import capture
+    from tests.test_signal_discovery import HOST, article, source
+
+    storage = CollectionStorage(MemoryObjects(), state_for())
+    src = source()
+    src.html_rules.window_date_policy = "source_displayed"
+    content = article() + '<meta property="article:modified_time" content="2026-10-14">'
+    run, _ = capture(
+        storage,
+        '<a href="/article/a">Report</a>',
+        src=src,
+        pages={HOST + "/article/a": content},
+    )
+    replay = replay_collection(storage, run["run_id"])
+    result = build_dataset(storage, replay["run_id"])
+    assert result["status"] == "ready"
+    _, _, silver, _ = read_dataset(storage, result["dataset_id"])
+    assert silver.schema_version == "healthlab-silver-2"
+    row = gold_records(storage, result["dataset_id"])[0]
+    assert row["publication_date"] is None
+    assert row["selection_date"] == "2026-10-14"
+    assert row["selection_date_basis"] == "article_modified"
+    assert row["selection_date_evidence"][0]["raw_sha256"] == row["raw_sha256"]
+    export_dataset(storage, result["dataset_id"], tmp_path / "v2-export")
+    assert verify_export(tmp_path / "v2-export")["verified"]

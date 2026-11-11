@@ -235,7 +235,7 @@ def test_explicit_source_response_limit_remains_bounded(tmp_path):
         )
         assert result == raw
         with pytest.raises(ValueError):
-            HTMLFetcher(client, store, POLICY, max_bytes=9_000_000)
+            HTMLFetcher(client, store, POLICY, max_bytes=32_000_001)
 
 
 def test_actual_population_api_inventory_and_headers_cover_the_period(tmp_path):
@@ -253,7 +253,9 @@ def test_actual_population_api_inventory_and_headers_cover_the_period(tmp_path):
     )
     raw = gzip.decompress((fixtures / record["file"]).read_bytes())
     assert hashlib.sha256(raw).hexdigest() == record["raw_sha256"]
-    registry = Registry.model_validate_json(Path("config/signal_sources.json").read_bytes())
+    registry = Registry.model_validate_json(
+        Path("tests/fixtures/signal_html/population_registry_legacy.json").read_bytes()
+    )
     source = next(s for s in registry.sources if s.source_id == "moh_population")
 
     def response(request):

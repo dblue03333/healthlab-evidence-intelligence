@@ -10,6 +10,7 @@ import httpx
 import truststore
 
 from healthlab.models import IngestionError
+from healthlab.signal.diagnostics import Span, exception_diagnostic
 
 
 @dataclass(frozen=True)
@@ -44,23 +45,58 @@ class HTMLFetcher:
     the request budget. Only transient transport/status errors are retried.
     """
 
-    def __init__(self, client, store, policy=None, *, sleep=None, max_bytes=2_000_000):
+    def __init__(
+        self, client, store, policy=None, *, sleep=None, max_bytes=2_000_000, cache_only=False
+    ):
         self.client = client
         self.store = store
         self.policy = policy or FetchPolicy()
         self.sleep = sleep or time.sleep
-        if not 1000 <= max_bytes <= 8_000_000:
-            raise ValueError("Response limit must be between 1000 and 8000000 bytes")
+        if not 1000 <= max_bytes <= 32_000_000:
+            raise ValueError("Response limit must be between 1000 and 32000000 bytes")
         self.max_bytes = max_bytes
+        self.cache_only = cache_only
 
-    def fetch(self, url, checkpoint, save, *, response_format="html"):
+    def fetch(
+        self,
+        url,
+        checkpoint,
+        save,
+        *,
+        response_format="html",
+        request_json=None,
+        request_form=None,
+        cache_namespace=None,
+    ):
+        # POST is used only for public read-only portal APIs. Bind cache and
+        # lifetime attempt budgets to both endpoint and canonical request body.
+        import hashlib
+        import json
+        from urllib.parse import urlencode
+
+        if request_json is not None and request_form is not None:
+            raise ValueError("Choose one POST body format")
+        body = None if request_json is None else json.dumps(request_json, sort_keys=True).encode()
+        if request_form is not None:
+            body = urlencode(sorted(request_form.items())).encode()
+        key = url if body is None else "POST " + url + " " + hashlib.sha256(body).hexdigest()
+        if cache_namespace is not None:
+            key = cache_namespace + " " + key
         if response_format not in {"html", "json"}:
             raise ValueError("Unsupported response format")
-        if url in checkpoint["responses"]:
-            digest = checkpoint["responses"][url]["raw_sha256"]
+        if key in checkpoint["responses"]:
+            digest = checkpoint["responses"][key]["raw_sha256"]
             return self.store.read(digest), digest
+        if self.cache_only:
+            raise FetchFailure("replay_cache_miss")
+        gate = checkpoint.get("retry_gates", {}).get(key, {})
+        remaining = max(0, gate.get("retry_not_before", 0) - time.time())
+        if remaining > self.policy.max_retry_delay:
+            raise FetchFailure("html_retry_cooldown", retryable=True)
+        if remaining:
+            self.sleep(remaining)
         attempts = checkpoint["http_attempts"]
-        previous = [a for a in attempts if a["url"] == url]
+        previous = [a for a in attempts if a.get("request_key", a["url"]) == key]
         used = len(previous)
         if used >= self.policy.max_attempts:
             raise FetchFailure("html_attempts_exhausted", retryable=True)
@@ -74,15 +110,60 @@ class HTMLFetcher:
             self.sleep(remaining)
         for number in range(used + 1, self.policy.max_attempts + 1):
             self.sleep(self.policy.request_interval)
-            event = {"url": url, "attempt": number, "status": "started"}
+            event = {
+                "url": url,
+                "attempt": number,
+                "status": "started",
+                "started_at": datetime.now(UTC).isoformat(),
+            }
+            if body is not None:
+                event.update(method="POST", request_key=key)
+                if request_json is not None:
+                    event["request_json"] = request_json
+                else:
+                    event["request_form_sha256"] = hashlib.sha256(body).hexdigest()
+            elif cache_namespace is not None:
+                event["request_key"] = key
             if response_format == "json":
                 event["response_format"] = "json"
             attempts.append(event)
             save()
             retry_after = None
+            span = Span()
             try:
-                with self.client.stream("GET", url, follow_redirects=False) as response:
+                with self.client.stream(
+                    "GET" if body is None else "POST",
+                    url,
+                    content=body,
+                    follow_redirects=False,
+                    headers={"Content-Type": "application/x-www-form-urlencoded"}
+                    if request_form is not None
+                    else None,
+                ) as response:
                     event["http_status"] = response.status_code
+                    retry_after = response.headers.get("retry-after")
+                    expected_type = "text/html" if response_format == "html" else "application/json"
+                    if (
+                        response.status_code != 200
+                        or expected_type not in response.headers.get("content-type", "").lower()
+                    ):
+                        # Failed public responses are bounded and auditable too.
+                        limit = min(self.max_bytes, 65_536)
+                        captured = bytearray()
+                        incomplete = False
+                        try:
+                            for chunk in response.iter_bytes():
+                                captured.extend(chunk[: max(0, limit - len(captured))])
+                                if len(captured) >= limit:
+                                    break
+                        except httpx.TransportError as body_exc:
+                            # A broken diagnostic body must not change the HTTP
+                            # status classification or bypass a server cooldown.
+                            incomplete = True
+                            event["diagnostic_body_error"] = type(body_exc).__name__
+                        event["diagnostic_sha256"] = self.store.put(bytes(captured))
+                        event["diagnostic_bytes"] = len(captured)
+                        event["diagnostic_may_be_truncated"] = incomplete or len(captured) >= limit
                     if response.status_code != 200:
                         retryable = response.status_code in {408, 429, 500, 502, 503, 504}
                         retry_after = response.headers.get("retry-after")
@@ -93,6 +174,7 @@ class HTMLFetcher:
                     raw = bytearray()
                     for chunk in response.iter_bytes():
                         raw.extend(chunk)
+                        event["response_bytes"] = len(raw)
                         if len(raw) > self.max_bytes:
                             raise FetchFailure("html_limit")
                 digest = self.store.put(bytes(raw))
@@ -106,8 +188,11 @@ class HTMLFetcher:
                 )
                 event.update(
                     status="failed",
+                    finished_at=datetime.now(UTC).isoformat(),
                     error_code=exc.code if isinstance(exc, FetchFailure) else type(exc).__name__,
                     retryable=retryable,
+                    timing=span.finish(),
+                    diagnostic=exception_diagnostic(exc),
                 )
                 delay = self.policy.backoff_seconds * 2 ** (number - 1)
                 if retry_after:
@@ -134,24 +219,48 @@ class HTMLFetcher:
                 ):
                     raise FetchFailure(event["error_code"], retryable=retryable) from exc
                 self.sleep(delay)
+            except BaseException as exc:
+                event.update(
+                    status="interrupted",
+                    finished_at=datetime.now(UTC).isoformat(),
+                    error_code=type(exc).__name__,
+                    retryable=False,
+                    timing=span.finish(),
+                    diagnostic=exception_diagnostic(exc),
+                )
+                save()
+                raise
             else:
-                event.update(status="completed", raw_sha256=digest, response_bytes=len(raw))
-                checkpoint["responses"][url] = {"raw_sha256": digest}
+                event.update(
+                    status="completed",
+                    timing=span.finish(),
+                    raw_sha256=digest,
+                    response_bytes=len(raw),
+                    finished_at=datetime.now(UTC).isoformat(),
+                )
+                checkpoint["responses"][key] = {
+                    "raw_sha256": digest,
+                    "captured_at": event["finished_at"],
+                }
                 if response_format == "json":
                     headers = {
                         key: response.headers[key]
                         for key in ("x-wp-total", "x-wp-totalpages")
                         if key in response.headers
                     }
-                    checkpoint["responses"][url]["headers"] = headers
+                    checkpoint["responses"][key]["headers"] = headers
                     event["response_headers"] = headers
                 save()
                 return bytes(raw), digest
 
 
 def source_client():
+    context = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    # The Ministry server selects undersized finite-field DH. Offer the existing
+    # secure cipher set without DHE; never lower security level or disable trust.
+    context.set_ciphers(":".join(c["name"] for c in context.get_ciphers() if c["kea"] != "kx-dhe"))
     return httpx.Client(
-        verify=truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT),
+        verify=context,
         timeout=20,
         follow_redirects=False,
     )

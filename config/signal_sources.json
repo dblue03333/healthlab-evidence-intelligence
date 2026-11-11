@@ -2,47 +2,48 @@
   "schema_version": "signal-registry-3",
   "sources": [
     {
-      "source_id": "moh_population",
-      "organization": "Bộ Y tế / Cục Dân số",
+      "source_id": "moh_portal",
+      "organization": "Bộ Y tế Việt Nam",
       "kind": "html",
-      "url": "https://vnpa.moh.gov.vn/",
+      "url": "https://moh.gov.vn/",
       "geography": "Vietnam",
       "enabled": true,
       "required": true,
       "max_documents": 6,
       "max_article_fetches": 180,
-      "usage_policy": "Public WordPress posts API on the same official host, filtered by site-local publication window; validate total counts and pages. Fetch canonical HTML article bodies separately. No exhaustive website claim beyond public posts API; repost provenance/status require triage.",
+      "usage_policy": "Official Ministry portal public read-only POST API. Configured news categories only: highlights, leadership, direction, general news, local news and health policy. Each bounded newest-first inventory must reach before the publication window with verified descending dates, or exhaust its reported total. No exhaustive website claim. JSON raw and publication evidence retained; media never fetched.",
       "html_rules": {
-        "rule_id": "moh_population",
-        "host": "vnpa.moh.gov.vn",
+        "rule_id": "moh_portal",
+        "host": "moh.gov.vn",
         "article_urls": {
           "include_path_patterns": [
-            "/[^/]+/"
+            "/index\\.jsp"
           ],
-          "exclude_paths": [
-            "/chuc-nang-nhiem-vu/",
-            "/co-cau-to-chuc/",
-            "/gioi-thieu/",
-            "/he-thong-van-ban/",
-            "/lanh-dao-cuc-dan-so/",
-            "/lanh-dao-duong-nhiem/",
-            "/lich-su-phat-trien/",
-            "/so-lieu-thong-ke/",
-            "/tai-lieu-chuyen-mon/",
-            "/thong-tin-lien-he/",
-            "/tin-tuc-su-kien/"
-          ]
+          "required_query_parameters": {
+            "pageId": "5803",
+            "aid": "[1-9][0-9]*",
+            "cid": "[1-9][0-9]*"
+          }
         },
         "body": {
-          "classes": [
-            "single-page"
-          ]
-        }
+          "attributes": {
+            "id": "portal-body"
+          }
+        },
+        "standard_date_metadata": false
       },
       "html_discovery": {
-        "wordpress_api_url": "https://vnpa.moh.gov.vn/wp-json/wp/v2/posts",
-        "api_page_size": 50,
-        "max_listing_pages": 6
+        "moh_portal_categories": [
+          "8358",
+          "8351",
+          "8360",
+          "8356",
+          "8355",
+          "8338"
+        ],
+        "portal_inventory_size": 1000,
+        "max_listing_pages": 6,
+        "skip_outside_window": true
       },
       "html_media_policy": "text_only"
     },
@@ -56,9 +57,11 @@
       "required": true,
       "max_documents": 6,
       "max_article_fetches": 100,
-      "usage_policy": "Tin tuc su kien category, observed sequential pagination and chronological publication boundary; up to six listings. Out-of-window cards are recorded with saved listing date evidence without claiming their article content was read. Missing/conflicting dates require article fetch/review.",
+      "usage_policy": "Tin tuc su kien category; newsletter selection by source-displayed calendar date: listing card, then article update, then explicit publication. Original publication remains separate. Sequential pagination and chronological displayed-date boundary; up to six category listings plus a bounded blank-key public search supplement (up to seven pages, 100-result cap, verified date boundary). Outside-window cards retain raw listing evidence without implying article content was read. Missing/conflicting selection dates require review.",
       "html_rules": {
         "rule_id": "hcm_medinet",
+        "revision": 2,
+        "window_date_policy": "source_displayed",
         "host": "medinet.hochiminhcity.gov.vn",
         "article_urls": {
           "include_path_patterns": [
@@ -107,6 +110,8 @@
         "listing_path_patterns": [
           "/tin-tuc-su-kien-c1780(?:-p\\d+)?\\.aspx"
         ],
+        "hcm_search_inventory": true,
+        "chronological_scope": {"attributes": {"id": "plcall_dtn_UpdatePanel1"}},
         "pagination_selector": {
           "classes": [
             "pagination"
@@ -130,7 +135,7 @@
       "required": true,
       "max_documents": 4,
       "max_article_fetches": 100,
-      "usage_policy": "WHO Ageing landing plus Vietnam-office news/releases/features/commentaries/speeches. Global filtered All news is outside current domestic monitoring scope, not a required listing. Bound publication dates allow explicit out-of-window content skips; HTML responses bounded at 4MB. No exhaustive website claim.",
+      "usage_policy": "WHO Ageing landing plus Vietnam-office releases/features/commentaries/speeches; explicit page-1 seeds and sequential chronological pagination. Global filtered All news is outside domestic scope. Bound publication dates permit audited out-of-window content skips. Ageing includes only its declared top-three news widget snapshot, not all global news or historical widget membership. HTML responses bounded at 32MB after observing a 22.5MB article with embedded images; no linked media is fetched and no exhaustive website claim.",
       "html_rules": {
         "rule_id": "who_news",
         "host": "www.who.int",
@@ -174,11 +179,10 @@
       },
       "html_discovery": {
         "additional_listing_urls": [
-          "https://www.who.int/vietnam/news",
           "https://www.who.int/vietnam/news/releases/1",
-          "https://www.who.int/vietnam/news/feature-stories",
-          "https://www.who.int/vietnam/news/commentaries",
-          "https://www.who.int/vietnam/news/speeches"
+          "https://www.who.int/vietnam/news/feature-stories/1",
+          "https://www.who.int/vietnam/news/commentaries/1",
+          "https://www.who.int/vietnam/news/speeches/1"
         ],
         "listing_path_patterns": [
           "/vietnam/news/(?:releases|feature-stories|commentaries|speeches)(?:/\\d+)?"
@@ -190,10 +194,15 @@
           "_x_tr_hl"
         ],
         "max_listing_pages": 12,
+        "who_speeches_api": true,
+        "who_ageing_widget": true,
+        "who_speeches_max_pages": 2,
+        "api_page_size": 100,
         "stop_before_window": true,
-        "skip_outside_window": true
+        "skip_outside_window": true,
+        "sequential_page_pattern": "/(?:health-topics/ageing|vietnam/news/(?:releases|feature-stories|commentaries|speeches)(?:/(?P<page>\\d+))?)"
       },
-      "html_max_response_bytes": 4000000,
+      "html_max_response_bytes": 32000000,
       "html_media_policy": "text_only"
     }
   ]

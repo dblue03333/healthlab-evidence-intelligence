@@ -211,7 +211,16 @@ def main(argv=None):
             registry = Registry.model_validate_json(args.registry.read_bytes())
             result = {
                 "sources": [
-                    {"source_id": s.source_id, "kind": s.kind, "enabled": s.enabled}
+                    {
+                        "source_id": s.source_id,
+                        "organization": s.organization,
+                        "url": s.url,
+                        "kind": s.kind,
+                        "enabled": s.enabled,
+                        "required": s.required,
+                        "scope": s.usage_policy,
+                        "media_policy": s.html_media_policy if s.kind == "html" else None,
+                    }
                     for s in registry.sources
                 ],
                 "gmail_sender_configured": bool(os.environ.get("HEALTHLAB_GMAIL_USER")),
