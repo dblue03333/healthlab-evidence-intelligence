@@ -1,4 +1,8 @@
-"""Complete attached support, independent citation review and unchanged date ownership."""
+"""Complete attached support, independent citation review and unchanged date ownership.
+
+Direct contract cases pin gold-editorial-13 / editorial-review-5; the native-run
+cases below exercise the current runtime through the shared v14 fixture.
+"""
 
 import copy
 import json
@@ -10,6 +14,8 @@ from healthlab import editorial as ed
 from healthlab.editorial_review_policy import review_gate, validate_review
 from tests.test_editorial import BODY, WINDOW, row, scope_assessment, setup_run
 from tests.test_editorial_passages import reference_payload
+
+V13 = "gold-editorial-13"
 
 TEXT = (
     "Ngày 10/10/2026, Bộ Y tế họp về dự thảo sàng lọc cho người từ 60 tuổi. "
@@ -32,7 +38,10 @@ def raw(article=None, **fact_updates):
 def canonical(value=None, article=None):
     article = article or row(TEXT)
     return ed.canonical_proposal(
-        ed.resolve_reference_ids(value or raw(article), article), article, WINDOW
+        ed.resolve_reference_ids(value or raw(article), article, version=V13),
+        article,
+        WINDOW,
+        version=V13,
     )
 
 
@@ -74,14 +83,14 @@ def test_new_raw_schema_requires_support_field_even_if_it_is_empty():
     value = raw()
     value["facts"][0].pop("supporting_passage_ids")
     with pytest.raises(ValidationError):
-        ed.resolve_reference_ids(value, row(TEXT))
+        ed.resolve_reference_ids(value, row(TEXT), version=V13)
     old = ed.resolve_reference_ids(value, row(TEXT), version="gold-editorial-12")
     assert "supporting_passages" not in old["facts"][0]
 
 
 @pytest.mark.parametrize("change", ["offset", "quote", "unknown", "repeat", "primary"])
 def test_tampering_resolved_support_cannot_feed_a_packet(change):
-    value = ed.resolve_reference_ids(raw(), row(TEXT))
+    value = ed.resolve_reference_ids(raw(), row(TEXT), version=V13)
     spans = value["facts"][0]["supporting_passages"]
     if change == "offset":
         spans[1]["start"] += 1
@@ -94,7 +103,7 @@ def test_tampering_resolved_support_cannot_feed_a_packet(change):
     if change == "primary":
         spans[0], spans[1] = spans[1], spans[0]
     with pytest.raises(ValueError):
-        ed.canonical_proposal(value, row(TEXT), WINDOW)
+        ed.canonical_proposal(value, row(TEXT), WINDOW, version=V13)
 
 
 def test_repeated_literal_text_uses_selected_id_offset_not_first_string_occurrence():
@@ -226,10 +235,10 @@ def test_same_schema_archive_keeps_citations_and_exports_to_inspections(tmp_path
 
 
 def test_current_prompts_distinguish_maturity_relevance_and_citation_coverage():
-    c, schema = ed.messages("classify", row(TEXT), WINDOW)
+    c, schema = ed.messages("classify", row(TEXT), WINDOW, version=V13)
     assert schema is ed.SupportedReferenceProposal
     assert "SEPARATELY from implementation maturity" in c[0]["content"]
-    r, schema = ed.messages("review", row(TEXT), WINDOW, canonical())
+    r, schema = ed.messages("review", row(TEXT), WINDOW, canonical(), version=V13)
     assert schema is ed.CitationReview and "Do NOT silently borrow" in r[0]["content"]
     assert "supported_citation_fact_indexes" in schema.model_json_schema()["required"]
     assert (

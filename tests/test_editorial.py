@@ -85,43 +85,77 @@ def setup_run(tmp_path, monkeypatch, responses):
     )
     monkeypatch.setattr(editorial_runs, "read_dataset", lambda *args: (None, None, None, gold))
 
+    _, candidates = ed.passage_inputs(article)
+    date_passages = {d["candidate_id"]: d["passage_id"] for d in candidates}
+    fact_counts = []
+
+    def v14_fact(f):
+        """Native fixtures emit the current typed date link and explicit context keys."""
+        if "context" in f or "date_link" in f:
+            return f
+        date_id = f.get("event_date_candidate_id")
+        same = date_passages.get(date_id) == f["passage_id"]
+        link = None
+        if date_id is not None:
+            link = (
+                dict(kind="same_passage", candidate_id=date_id)
+                if same
+                else dict(
+                    kind="cross_passage",
+                    candidate_id=date_id,
+                    rationale=f.get("date_link_rationale"),
+                )
+            )
+        return dict(
+            statement=f["statement"],
+            passage_id=f["passage_id"],
+            supporting_passage_ids=f.get("supporting_passage_ids", []),
+            context=dict(actor=None, document=None, population=None, status=None),
+            date_link=link,
+            reported_status=f["reported_status"],
+        )
+
     def to_ids(p):
         if isinstance(p, dict) and "review_version" in p:
+            count = fact_counts[-1] if fact_counts else 1
             return dict(
                 {k: v for k, v in p.items() if k != "newsletter_eligible"},
-                review_version="editorial-review-5",
+                review_version="editorial-review-6",
                 supported_citation_fact_indexes=p.get(
                     "supported_citation_fact_indexes", p["supported_fact_indexes"]
                 ),
                 supported_date_fact_indexes=p.get("supported_date_fact_indexes", []),
+                context_assessments=p.get(
+                    "context_assessments",
+                    [
+                        dict(
+                            fact_index=i,
+                            actor="not_applicable",
+                            document="not_applicable",
+                            population="not_applicable",
+                            status="not_applicable",
+                            explanation="Fixture without context bindings.",
+                        )
+                        for i in range(count)
+                    ],
+                ),
             )
         if isinstance(p, dict) and "relevance_passage_id" in p:
-            return dict(
-                p,
-                facts=[
-                    dict(
-                        {
-                            key: value
-                            for key, value in f.items()
-                            if key != "date_context_passage_id"
-                        },
-                        supporting_passage_ids=f.get("supporting_passage_ids", []),
-                    )
-                    for f in p["facts"]
-                ],
-            )
+            fact_counts.append(len(p["facts"]))
+            return dict(p, facts=[v14_fact(f) for f in p["facts"]])
         if not isinstance(p, dict) or "relevance_quote" not in p:
             return p
+        fact_counts.append(len(p["facts"]))
         result = {k: v for k, v in p.items() if k not in {"relevance_quote", "facts"}}
         result["relevance_passage_id"] = "P2"
         result["facts"] = [
-            dict(
-                statement=f["statement"],
-                passage_id="P1",
-                supporting_passage_ids=[],
-                event_date_candidate_id="D1" if f["event_date"] else None,
-                date_link_rationale=None,
-                reported_status=f["reported_status"],
+            v14_fact(
+                dict(
+                    statement=f["statement"],
+                    passage_id="P1",
+                    event_date_candidate_id="D1" if f["event_date"] else None,
+                    reported_status=f["reported_status"],
+                )
             )
             for f in p["facts"]
         ]

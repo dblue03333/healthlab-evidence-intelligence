@@ -7,6 +7,7 @@ from threading import Event, Lock
 
 from healthlab.data.pilot import runner_lock
 from healthlab.editorial.contracts import (
+    CONTEXT_CONTRACTS,
     EditorialDraft,
     canonical_proposal,
     passage_inputs,
@@ -15,7 +16,12 @@ from healthlab.editorial.contracts import (
 from healthlab.editorial.prompts import messages
 from healthlab.editorial.report import export_report
 from healthlab.editorial.runs import allocated_calls, jobs, load
-from healthlab.editorial_review_policy import CitationReview, SemanticReview, validate_review
+from healthlab.editorial_review_policy import (
+    CitationReview,
+    ContextReview,
+    SemanticReview,
+    validate_review,
+)
 from healthlab.editorial_scope import validate_scope
 from healthlab.evidence import decode_model_json
 from healthlab.models import IngestionError
@@ -90,7 +96,8 @@ def run_calls(store, run_id, provider, *, role="classify", workers=3, max_calls=
                 elif role == "review":
                     units, _ = passage_inputs(row, version=run["version"])
                     model = (
-                        CitationReview if run["version"] == "gold-editorial-13" else SemanticReview
+                        ContextReview if run["version"] in CONTEXT_CONTRACTS
+                        else CitationReview if run["version"] == "gold-editorial-13" else SemanticReview
                     )
                     model.model_validate(payload)
                     result = validate_review(

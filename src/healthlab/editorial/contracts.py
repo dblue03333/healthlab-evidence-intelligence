@@ -2,10 +2,20 @@
 
 import re
 from types import SimpleNamespace
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import Field, model_validator
 
+from healthlab.editorial_context import (
+    MAX_CONTEXT_CHARS,
+    BindingRepair,
+    FactContext,
+    ResolvedContext,
+    rationale_date_conflict,
+    repair_context,
+    resolve_context,
+    validate_context,
+)
 from healthlab.editorial_passages import POLICY as PASSAGE_POLICY
 from healthlab.editorial_passages import editorial_passages
 from healthlab.editorial_review_policy import fact_date_supported
@@ -13,7 +23,7 @@ from healthlab.models import Contract
 from healthlab.signal.triage import source_passages
 from healthlab.signal.triage_v5 import literal_dates
 
-VERSION = "gold-editorial-13"
+VERSION = "gold-editorial-15"
 # Finished known schemas stay readable; inference and mutations require the exact
 # current runtime. Legacy review findings never silently acquire new semantics.
 READ_VERSIONS = {
@@ -29,8 +39,12 @@ READ_VERSIONS = {
     "gold-editorial-10",
     "gold-editorial-11",
     "gold-editorial-12",
+    "gold-editorial-13",
+    "gold-editorial-14",
     VERSION,
 }
+# Context contract per version: v14 rejects any invalid binding; v15 repairs or drops facets.
+CONTEXT_CONTRACTS = {"gold-editorial-14": "fact-context-1", "gold-editorial-15": "fact-context-2"}
 MAX_BODY_CHARS = 20_000
 
 
@@ -158,8 +172,47 @@ class SupportedArticleProposal(ArticleProposal):
     facts: list[SupportedEvidenceFact] = Field(max_length=5)
 
 
+class SamePassageDate(Contract):
+    kind: Literal["same_passage"]
+    candidate_id: str = Field(pattern=r"^D[1-9]\d*$")
+
+
+class CrossPassageDate(Contract):
+    kind: Literal["cross_passage"]
+    candidate_id: str = Field(pattern=r"^D[1-9]\d*$")
+    rationale: str = Field(min_length=1, max_length=900, pattern=r"\S")
+
+
+class ContextIDFact(Contract):
+    statement: str = Field(min_length=1, max_length=900)
+    passage_id: str = Field(pattern=r"^P[1-9]\d*$")
+    supporting_passage_ids: list[str] = Field(max_length=3)
+    context: FactContext
+    date_link: Annotated[SamePassageDate | CrossPassageDate, Field(discriminator="kind")] | None
+    reported_status: Literal[
+        "proposed", "announced", "adopted", "effective", "pilot", "operational",
+        "published_report", "not_applicable", "unknown",
+    ]
+
+
+class ContextReferenceProposal(ReferenceArticleProposal):
+    facts: list[ContextIDFact] = Field(max_length=5)
+
+
+class ContextEvidenceFact(SupportedEvidenceFact):
+    context: ResolvedContext
+
+
+class ContextArticleProposal(ArticleProposal):
+    facts: list[ContextEvidenceFact] = Field(max_length=5)
+
+
+class RepairedContextArticleProposal(ContextArticleProposal):
+    binding_repairs: list[BindingRepair] = Field(default_factory=list, max_length=25)
+
+
 def passage_policy(version):
-    if version in {"gold-editorial-11", "gold-editorial-12", "gold-editorial-13"}:
+    if version in {"gold-editorial-11", "gold-editorial-12", "gold-editorial-13", *CONTEXT_CONTRACTS}:
         return PASSAGE_POLICY
     if version in READ_VERSIONS:
         return "editorial-passages-1"
@@ -227,6 +280,56 @@ def resolve_reference_ids(payload, article, *, version=VERSION):
     A rationale for a same-passage/null date is retained as untrusted audit text;
     it cannot change the selected date or create cross-passage evidence.
     """
+    if version in CONTEXT_CONTRACTS:
+        # v15 repairs/drops a bad facet or date link per fact; v14 rejects the proposal.
+        repair = CONTEXT_CONTRACTS[version] == "fact-context-2"
+        value = ContextReferenceProposal.model_validate(payload).model_dump()
+        units, dates = passage_inputs(article, version=version)
+        by_id = {u["passage_id"]: u for u in units}
+        by_date = {d["candidate_id"]: d for d in dates}
+        contexts, repairs = [], []
+        for index, fact in enumerate(value["facts"]):
+            ids = [fact["passage_id"], *fact["supporting_passage_ids"]]
+            if len(set(ids)) != len(ids) or any(pid not in by_id for pid in ids):
+                raise ValueError("Unknown or repeated supporting passage")
+            spans = [by_id[pid] for pid in ids]
+            if repair:
+                context, fixed = repair_context(fact.pop("context"), spans, index)
+                contexts.append(context)
+                repairs.extend(fixed)
+            else:
+                contexts.append(resolve_context(fact.pop("context"), spans))
+            link = fact.pop("date_link")
+            selected = by_date.get(link["candidate_id"]) if link else None
+            if repair and link:
+                cross = selected is not None and selected["passage_id"] != fact["passage_id"]
+                dropped = (
+                    "unknown_candidate" if selected is None
+                    else "rationale_names_other_date"
+                    if rationale_date_conflict(link.get("rationale"), selected["date"])
+                    else "cross_passage_without_rationale" if cross and link["kind"] == "same_passage"
+                    else None
+                )
+                if dropped:
+                    repairs.append(dict(fact_index=index, field="date_link", action="dropped", reason=dropped))
+                    link = selected = None
+                elif not cross and link["kind"] == "cross_passage":
+                    repairs.append(dict(fact_index=index, field="date_link", action="retyped",
+                                        reason="candidate_in_primary_passage"))
+                    link = dict(link, kind="same_passage")
+            if link and selected is None:
+                raise ValueError("Unknown event date candidate")
+            if link and (link["kind"] == "same_passage") != (selected["passage_id"] == fact["passage_id"]):
+                raise ValueError("Date link kind differs from selected passage")
+            fact["event_date_candidate_id"] = link["candidate_id"] if link else None
+            fact["date_link_rationale"] = link.get("rationale") if link else None
+        # v13 resolution preserves the established exact-date and four-span policy.
+        result = resolve_reference_ids(value, article, version="gold-editorial-13")
+        for fact, context in zip(result["facts"], contexts, strict=True):
+            fact["context"] = context
+        if repair:
+            result["binding_repairs"] = repairs
+        return result
     supported = version == "gold-editorial-13"
     model = SupportedReferenceProposal if supported else ReferenceArticleProposal
     value = model.model_validate(payload).model_dump()
@@ -274,7 +377,12 @@ class EditorialDraft(Contract):
 
 
 def canonical_proposal(value, article, window, *, version=VERSION):
-    model = SupportedArticleProposal if version == "gold-editorial-13" else ArticleProposal
+    contract = CONTEXT_CONTRACTS.get(version)
+    model = (
+        RepairedContextArticleProposal if contract == "fact-context-2"
+        else ContextArticleProposal if contract
+        else SupportedArticleProposal if version == "gold-editorial-13" else ArticleProposal
+    )
     p = model.model_validate(value)
     body = article["body"]
     if p.relevance_quote not in body:
@@ -300,6 +408,11 @@ def canonical_proposal(value, article, window, *, version=VERSION):
                 raise ValueError("Supporting evidence differs from frozen source passages")
             if spans[0]["quote"] != fact.quote:
                 raise ValueError("Primary quote differs from first supporting passage")
+            if isinstance(fact, ContextEvidenceFact):
+                validate_context(
+                    fact.context.model_dump(), spans,
+                    max_chars=MAX_CONTEXT_CHARS if contract == "fact-context-2" else None,
+                )
             start = spans[0]["start"]
         else:
             start = body.index(fact.quote)
@@ -321,7 +434,7 @@ def canonical_proposal(value, article, window, *, version=VERSION):
         and not holds
         and not external_footer
     )
-    return dict(
+    result = dict(
         p.model_dump(),
         resolved_facts=resolved,
         technical_holds=holds,
@@ -329,3 +442,6 @@ def canonical_proposal(value, article, window, *, version=VERSION):
         newsletter_candidate=candidate,
         semantic_support="not_human_reviewed",
     )
+    if contract:
+        result["context_contract"] = contract
+    return result

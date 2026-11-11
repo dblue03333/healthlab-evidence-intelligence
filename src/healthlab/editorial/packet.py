@@ -2,7 +2,12 @@
 
 import json
 
-from healthlab.editorial.contracts import ArticleProposal, canonical_proposal, passage_inputs
+from healthlab.editorial.contracts import (
+    CONTEXT_CONTRACTS,
+    ArticleProposal,
+    canonical_proposal,
+    passage_inputs,
+)
 from healthlab.editorial.runs import jobs, load
 from healthlab.editorial_review_policy import review_gate
 from healthlab.editorial_scope import scope_gate
@@ -31,8 +36,10 @@ def evidence_packet(store, run_id):
             continue
         row = records[job["document_id"]]
         saved = json.loads(store.read(job["result_sha256"]))
+        repaired = CONTEXT_CONTRACTS.get(run["version"]) == "fact-context-2"
+        fields = [*ArticleProposal.model_fields, *(["binding_repairs"] if repaired else [])]
         p = canonical_proposal(
-            {k: saved[k] for k in ArticleProposal.model_fields},
+            {k: saved[k] for k in fields},
             row,
             run["question"],
             version=run["version"],

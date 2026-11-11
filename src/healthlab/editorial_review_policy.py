@@ -8,6 +8,12 @@ from typing import Literal
 
 from pydantic import Field, StrictInt, model_validator
 
+from healthlab.editorial_context import (
+    FACETS,
+    ContextAssessment,
+    date_is_range_endpoint,
+    validate_context,
+)
 from healthlab.models import Contract
 
 REVIEW_VERSION = "editorial-review-2"
@@ -16,6 +22,7 @@ READ_REVIEW_VERSIONS = {
     "editorial-review-3",
     "editorial-review-4",
     "editorial-review-5",
+    "editorial-review-6",
 }
 
 
@@ -139,9 +146,31 @@ class ReviewedCitations(Review):
         return self
 
 
+class ContextReview(CitationReview):
+    review_version: Literal["editorial-review-6"]
+    context_assessments: list[ContextAssessment] = Field(max_length=5)
+
+
+class ReviewedContext(ReviewedCitations):
+    review_version: Literal["editorial-review-6"]
+    context_assessments: list[ContextAssessment] = Field(max_length=5)
+
+
+def context_supported(proposal, review):
+    assessments = {a["fact_index"]: a for a in review["context_assessments"]}
+    return all(
+        all(assessments[index][facet] != "missing" for facet in FACETS)
+        for index in review["supported_fact_indexes"]
+    )
+
+
 def fact_date_checks(proposal, window):
-    """Arithmetic only; literal identity never proves that a date is this event's."""
-    return [
+    """Arithmetic only; literal identity never proves that a date is this event's.
+
+    fact-context-2 adds a lexical range-endpoint flag; earlier contracts keep the exact
+    historical payload so their review prompts stay byte-identical.
+    """
+    checks = [
         {
             "fact_index": index,
             "event_date": fact.get("event_date"),
@@ -156,6 +185,13 @@ def fact_date_checks(proposal, window):
         }
         for index, fact in enumerate(proposal["facts"])
     ]
+    if proposal.get("context_contract") == "fact-context-2":
+        for check, fact in zip(checks, proposal["facts"], strict=True):
+            text = (fact.get("date_evidence") or {}).get("quote", fact["quote"])
+            check["date_is_range_endpoint"] = bool(
+                fact.get("event_date") and date_is_range_endpoint(text, fact["event_date"])
+            )
+    return checks
 
 
 def supported_development(proposal, review, window):
@@ -172,10 +208,16 @@ def supported_development(proposal, review, window):
 
 
 def validate_review(payload, proposal, passage_ids, window=None):
-    citations = payload.get("review_version") == "editorial-review-5"
-    current = payload.get("review_version") in {"editorial-review-4", "editorial-review-5"}
-    semantic_model = CitationReview if citations else SemanticReview
-    review_model = ReviewedCitations if citations else Review
+    contextual = payload.get("review_version") == "editorial-review-6"
+    citations = payload.get("review_version") in {"editorial-review-5", "editorial-review-6"}
+    current = payload.get("review_version") in {"editorial-review-4", "editorial-review-5", "editorial-review-6"}
+    requires_context = proposal.get("context_contract") in {"fact-context-1", "fact-context-2"} or any(
+        "context" in f for f in proposal["facts"]
+    )
+    if requires_context != contextual:
+        raise ValueError("Context proposal requires matching context review")
+    semantic_model = ContextReview if contextual else CitationReview if citations else SemanticReview
+    review_model = ReviewedContext if contextual else ReviewedCitations if citations else Review
     supplied_eligibility = payload.get("newsletter_eligible")
     if current:
         if window is None:
@@ -187,6 +229,25 @@ def validate_review(payload, proposal, passage_ids, window=None):
     review = review_model.model_validate(payload)
     if citations and any(not fact.get("supporting_passages") for fact in proposal["facts"]):
         raise ValueError("Citation review requires explicit fact support passages")
+    if contextual:
+        assessments = {a.fact_index: a for a in review.context_assessments}
+        if len(assessments) != len(review.context_assessments) or set(assessments) != set(range(len(proposal["facts"]))):
+            raise ValueError("Context review needs exactly one assessment per fact")
+        # A verdict that contradicts the attached binding (supported on a null facet,
+        # not_applicable on a bound one) withholds only that fact: it becomes "missing"
+        # instead of rejecting the whole review, mirroring per-facet repair at classify.
+        corrected = []
+        for assessment in review.context_assessments:
+            fact = proposal["facts"][assessment.fact_index]
+            context = validate_context(fact.get("context"), fact["supporting_passages"])
+            fixes = {
+                facet: "missing"
+                for facet in FACETS
+                if (getattr(assessment, facet) == "supported" and context[facet] is None)
+                or (getattr(assessment, facet) == "not_applicable" and context[facet] is not None)
+            }
+            corrected.append(assessment.model_copy(update=fixes))
+        review = review.model_copy(update={"context_assessments": corrected})
     valid = set(passage_ids)
     if any(p not in valid for p in review.topic_passage_ids):
         raise ValueError("Unknown review topic passage")
@@ -229,6 +290,7 @@ def validate_review(payload, proposal, passage_ids, window=None):
                 or set(review.supported_fact_indexes) <= set(review.supported_citation_fact_indexes)
             )
             and supported_development(proposal, value, window)
+            and (not contextual or context_supported(proposal, value))
         )
         if supplied_eligibility is not None and supplied_eligibility is not eligible:
             raise ValueError("Saved current review eligibility differs from derived eligibility")
@@ -244,7 +306,7 @@ def review_gate(proposal, review, passage_ids, window=None):
         return {"eligible": False, "reasons": ["legacy_review_requires_explicit_assessment"]}
     if (
         any("supporting_passages" in f for f in proposal["facts"])
-        and review.get("review_version") != "editorial-review-5"
+        and review.get("review_version") not in {"editorial-review-5", "editorial-review-6"}
     ):
         return {"eligible": False, "reasons": ["citation_review_required"]}
     try:
@@ -260,10 +322,12 @@ def review_gate(proposal, review, passage_ids, window=None):
         reasons.append("review_not_newsletter_eligible")
     if value["blocking_findings"]:
         reasons.append("blocking_findings")
-    if value["review_version"] == "editorial-review-5" and not set(
+    if value["review_version"] in {"editorial-review-5", "editorial-review-6"} and not set(
         value["supported_fact_indexes"]
     ) <= set(value["supported_citation_fact_indexes"]):
         reasons.append("citation_support_incomplete")
+    if value["review_version"] == "editorial-review-6" and not context_supported(proposal, value):
+        reasons.append("context_support_incomplete")
     # An in-window date on a rejected/unsupported fact cannot release the rest.
     if not supported_development(proposal, value, window):
         reasons.append("supported_in_window_development_missing")

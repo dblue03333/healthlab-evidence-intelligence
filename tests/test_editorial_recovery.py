@@ -72,8 +72,8 @@ def live_output():
                 statement=fact["statement"],
                 passage_id="P1",
                 supporting_passage_ids=[],
-                event_date_candidate_id="D1",
-                date_link_rationale=None,
+                context=dict(actor=None, document=None, population=None, status=None),
+                date_link=dict(kind="same_passage", candidate_id="D1"),
                 reported_status=fact["reported_status"],
             )
         ],

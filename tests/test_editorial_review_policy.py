@@ -114,7 +114,7 @@ def test_known_archive_is_readable_but_not_mutable_and_export_preserves_old_file
     ed.run_calls(store, run["run_id"], provider, workers=1)
     saved = store.load(run["run_id"])
     saved.update(version=archive_version, runtime_sha256="a" * 64)
-    # This synthetic archive must use the historical fact contract, not v13 fields.
+    # This synthetic archive must use the historical fact contract, not v13/v14 fields.
     for job in ed.jobs(store, saved):
         if job.get("result_sha256"):
             import json
@@ -123,6 +123,8 @@ def test_known_archive_is_readable_but_not_mutable_and_export_preserves_old_file
             for field in ("facts", "resolved_facts"):
                 for fact in value.get(field, []):
                     fact.pop("supporting_passages", None)
+                    fact.pop("context", None)
+            value.pop("context_contract", None)
             job["result_sha256"] = store.put(ed.json_bytes(value))
             store.save(job)
     saved.pop("passage_policy")  # Historic manifests predate explicit passage policy metadata.
