@@ -12,6 +12,7 @@ from healthlab.editorial.contracts import (
     passage_inputs,
     passage_policy,
 )
+from healthlab.editorial_dates import DATE_POLICY_VERSIONS
 from healthlab.editorial_passages import POLICY as PASSAGE_POLICY
 from healthlab.editorial_review_policy import (
     CitationReview,
@@ -233,12 +234,32 @@ A necessary facet cannot be not_applicable merely because the classifier omitted
 Context missing on a retained supported fact withholds release, even if other citation
 checkboxes are positive. Use concrete citation/claim/status/event-link blockers too.
 """
-    if version == "gold-editorial-15" and role == "classify":
+    if CONTEXT_CONTRACTS.get(version) == "fact-context-2" and role == "classify":
         # v14 text above stays byte-identical for v14; v15 replaces its context block.
         start = instruction.index("Each fact MUST have context with actor")
         instruction = instruction[:start] + V15_CONTEXT
-    if version == "gold-editorial-15" and role == "review":
+    if CONTEXT_CONTRACTS.get(version) == "fact-context-2" and role == "review":
         instruction += V15_REVIEW
+    if version in DATE_POLICY_VERSIONS and role == "review":
+        instruction += """
+date_role_hints are textual clues, not proof of event identity. An as-of date describes
+a measurement cut-off; a deadline or range endpoint describes a schedule. Do not use
+these to date a different event. Where the fact relies on such a substitution, use
+event_link_unverified and omit the fact from supported_fact_indexes.
+"""
+    if version in DATE_POLICY_VERSIONS and role == "classify":
+        instruction += """
+Date candidates with basis inferred_from_publication_year were resolved by code from a
+yearless day/month and the publication year; select them like literal dates when they date
+the fact's own event. A footer that names only a known publisher host (for example
+suckhoedoisong.vn) means source_role repost, not unknown.
+"""
+    if version in DATE_POLICY_VERSIONS and role == "review":
+        instruction += """
+A repost whose footer names a known publisher host is not by itself an origin_unverified
+blocker; the issue cites both publishers. A date with basis inferred_from_publication_year is
+code-resolved from the publication year and must still belong to this fact's event.
+"""
     content = {"reporting_window": window}
     if article is not None:
         content["article"] = {

@@ -14,6 +14,7 @@ from healthlab.editorial_context import (
     date_is_range_endpoint,
     validate_context,
 )
+from healthlab.editorial_dates import DATE_POLICY, date_role, editorial_literal_dates
 from healthlab.models import Contract
 
 REVIEW_VERSION = "editorial-review-2"
@@ -26,12 +27,17 @@ READ_REVIEW_VERSIONS = {
 }
 
 
-def fact_date_supported(fact):
-    """Literal-date check; the caller must validate context identity against source."""
-    from healthlab.signal.triage_v5 import literal_dates
+def fact_date_supported(fact, *, policy=None, publication_date=None):
+    """Literal-date check; the caller must validate context identity against source.
 
+    With the current date policy a yearless day/month resolved from the publication year
+    also counts; such dates carry basis=inferred_from_publication_year in the date catalog.
+    """
     quote = (fact.get("date_evidence") or {}).get("quote", fact["quote"])
-    return fact.get("event_date") in {d["date"] for d in literal_dates(quote)}
+    return fact.get("event_date") in {
+        d["date"]
+        for d in editorial_literal_dates(quote, policy=policy, publication_date=publication_date)
+    }
 
 
 class BlockingFinding(Contract):
@@ -170,11 +176,14 @@ def fact_date_checks(proposal, window):
     fact-context-2 adds a lexical range-endpoint flag; earlier contracts keep the exact
     historical payload so their review prompts stay byte-identical.
     """
+    policy = proposal.get("date_policy")
     checks = [
         {
             "fact_index": index,
             "event_date": fact.get("event_date"),
-            "literal_date_supported": fact_date_supported(fact),
+            "literal_date_supported": fact_date_supported(
+                fact, policy=policy, publication_date=proposal.get("publication_date")
+            ),
             "inside_inclusive_window": (
                 window["mindate"] <= fact["event_date"] <= window["maxdate"]
                 if fact.get("event_date")
@@ -189,8 +198,20 @@ def fact_date_checks(proposal, window):
         for check, fact in zip(checks, proposal["facts"], strict=True):
             text = (fact.get("date_evidence") or {}).get("quote", fact["quote"])
             check["date_is_range_endpoint"] = bool(
-                fact.get("event_date") and date_is_range_endpoint(text, fact["event_date"])
+                fact.get("event_date")
+                and date_is_range_endpoint(text, fact["event_date"], policy=policy)
             )
+            if policy == DATE_POLICY:
+                check["date_role_hints"] = sorted(
+                    {
+                        date_role(text, item)
+                        for item in editorial_literal_dates(
+                            text, policy=policy, publication_date=proposal.get("publication_date")
+                        )
+                        if item["date"] == fact.get("event_date")
+                    }
+                    - {"unverified"}
+                )
     return checks
 
 

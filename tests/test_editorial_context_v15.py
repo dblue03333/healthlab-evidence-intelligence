@@ -331,12 +331,10 @@ def test_v15_prompts_default_to_null_and_name_repairs():
     s15, _ = ed.messages("scope", row(TEXT), WINDOW, version=V15)
     s14, _ = ed.messages("scope", row(TEXT), WINDOW, version="gold-editorial-14")
     assert s15 == s14
-    assert ed.VERSION == V15 and "gold-editorial-14" in ed.READ_VERSIONS
+    assert {V15, "gold-editorial-14"} <= ed.READ_VERSIONS
 
 
-def test_native_v15_run_repairs_instead_of_failing_and_packet_keeps_the_record(
-    tmp_path, monkeypatch
-):
+def test_native_run_repairs_instead_of_failing_and_packet_keeps_the_record(tmp_path, monkeypatch):
     value = dict(
         raw(),
         relevance_passage_id="P2",
@@ -365,7 +363,7 @@ def test_native_v15_run_repairs_instead_of_failing_and_packet_keeps_the_record(
         context_assessments=[assessment(actor="not_applicable")],
     )
     store, run, provider = setup_run(tmp_path, monkeypatch, [value, r, scope_assessment()])
-    assert run["version"] == V15
+    assert run["version"] == ed.VERSION
     ed.run_calls(store, run["run_id"], provider, workers=1)
     ed.plan_review(store, run["run_id"])
     ed.run_calls(store, run["run_id"], provider, role="review", workers=1)

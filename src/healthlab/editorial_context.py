@@ -174,7 +174,6 @@ def validate_context(value, spans, *, max_chars=None):
     return resolved
 
 
-_RANGE = r"\s*(?:[-–—]|đến|tới)\s*"
 _NUMERIC_DATE = re.compile(
     r"(?<![\d/.-])(\d{1,2})\s*[/.-]\s*(\d{1,2})(?:\s*[/.-]\s*(\d{4}))?(?!\d|\s*%)"
 )
@@ -199,14 +198,11 @@ def rationale_date_conflict(rationale, iso_date):
     return False
 
 
-def date_is_range_endpoint(text, iso_date):
+def date_is_range_endpoint(text, iso_date, *, policy=None):
     """True when the literal date starts or ends a range such as an anniversary period."""
-    from healthlab.signal.triage_v5 import literal_dates
+    from healthlab.editorial_dates import editorial_literal_dates, is_range_endpoint
 
-    for found in literal_dates(text or ""):
-        if found["date"] != iso_date:
-            continue
-        before, after = text[: found["start"]], text[found["end"] :]
-        if re.search(r"\d" + _RANGE + "$", before, re.I) or re.match(_RANGE + r"\d", after, re.I):
-            return True
-    return False
+    return any(
+        found["date"] == iso_date and is_range_endpoint(text, found)
+        for found in editorial_literal_dates(text or "", policy=policy)
+    )
