@@ -30,6 +30,8 @@ def resolved(text, published):
         ("Ngày 2/11 đã họp", None, []),  # no publication date
         ("Ngày 2/11 đã họp", "not-a-date", []),
         ("Đạt 95/100% chỉ tiêu", "2026-11-03", []),
+        ("Từ ngày 2/11 đến ngày 5/11 triển khai", "2026-11-06", []),  # range, prefixed end
+        ("Từ sáng 2/11 - chiều 5/11 triển khai", "2026-11-06", []),
     ],
 )
 def test_yearless_resolution(text, published, expected):
@@ -69,8 +71,20 @@ def test_fact_date_supported_accepts_resolved_yearless_date():
         ("Nội dung. Nguồn: Báo Sức khỏe và Đời sống", (True, [], False)),
         ("Nội dung. Nguồn: suckhoedoisong.vn và example.com", (True, ["suckhoedoisong.vn"], False)),
         ("Nội dung. Nguồn: evilsuckhoedoisong.vn", (True, [], False)),
+        ("Nội dung. Nguồn: (suckhoedoisong.vn), example.com", (True, ["suckhoedoisong.vn"], False)),
+        (
+            "Nội dung. Nguồn: suckhoedoisong.vn " + "x" * 130 + " example.com",
+            (True, ["suckhoedoisong.vn"], False),
+        ),
+        ("Nội dung. Nguồn: suckhoedoisong.vn, ngày 2.11", (True, ["suckhoedoisong.vn"], True)),
         ("Không có chân bài", (False, [], True)),
     ],
 )
 def test_footer_attributions(body, expected):
     assert footer_attributions(body) == expected
+
+
+def test_origin_policy_is_part_of_the_runtime_fingerprint():
+    from healthlab.editorial.runs import _RUNTIME_FILES
+
+    assert "editorial_origin.py" in _RUNTIME_FILES

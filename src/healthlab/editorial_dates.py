@@ -11,6 +11,7 @@ YEAR_INFERENCE_MAX_DAYS = 30
 INFERRED_YEAR_BASIS = "inferred_from_publication_year"
 _DAY_FIRST_HYPHEN = re.compile(r"(?<![\w/.-])(\d{1,2})-(\d{1,2})-(20\d{2})(?![\w/-]|\.\d)")
 _RANGE = r"\s*(?:[-–—]|đến|tới)\s*"
+_DATE_PREFIX = r"(?:(?:ngày|sáng|trưa|chiều|tối|đêm|hôm)\s+)?"
 _AS_OF = re.compile(r"\b(?:tính\s+(?:đến|tới)|đến\s+hết)\s*(?:ngày\s+)?$", re.I)
 _DEADLINE = re.compile(
     r"\b(?:hạn(?:\s+(?:chót|cuối))?|chậm\s+nhất)\s*(?:(?:là|vào)\s+)?(?:ngày\s+)?$", re.I
@@ -88,7 +89,8 @@ def resolve_yearless_dates(text, publication_date):
 def is_range_endpoint(text, item):
     before, after = text[: item["start"]], text[item["end"] :]
     return bool(
-        re.search(r"\d" + _RANGE + "$", before, re.I) or re.match(_RANGE + r"\d", after, re.I)
+        re.search(r"\d" + _RANGE + "$", before, re.I)
+        or re.match(_RANGE + _DATE_PREFIX + r"\d", after, re.I)
     )
 
 

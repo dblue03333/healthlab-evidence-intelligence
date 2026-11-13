@@ -22,7 +22,7 @@ TRUSTED_FOOTER_HOSTS = (
     "baocantho.com.vn",
 )
 _FOOTER = re.compile(r"(?:Nguồn|Theo)\s*:\s*[^\n]+", re.I)
-_HOST = re.compile(r"[a-z0-9-]+(?:\.[a-z0-9-]+)+", re.I)
+_HOST = re.compile(r"[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}", re.I)
 
 
 def _trusted(host):
@@ -37,8 +37,7 @@ def footer_attributions(body):
         return False, [], True
     hosts, all_trusted = [], True
     for match in matches:
-        snippet = match[0][:120].split(")")[0]
-        found = _HOST.findall(snippet)
+        found = _HOST.findall(match[0])
         if not found or not all(_trusted(h) for h in found):
             all_trusted = False
         hosts.extend(h.lower() for h in found if _trusted(h))

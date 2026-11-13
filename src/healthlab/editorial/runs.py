@@ -35,6 +35,7 @@ _RUNTIME_FILES = (
     "editorial/runs.py",
     "editorial_passages.py",
     "editorial_dates.py",
+    "editorial_origin.py",
     "editorial_review_policy.py",
     "editorial_scope.py",
     "provider.py",
