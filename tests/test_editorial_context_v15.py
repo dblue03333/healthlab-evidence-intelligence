@@ -19,8 +19,12 @@ from healthlab.editorial_context import (
     rationale_date_conflict,
 )
 from healthlab.editorial_review_policy import fact_date_checks, review_gate, validate_review
+from tests.conftest import REVIEW_RUNTIME
 from tests.test_editorial import WINDOW, row, scope_assessment, setup_run
 from tests.test_editorial_context import IDS, TEXT, assessment, bind, context, raw, review
+
+pytestmark = pytest.mark.usefixtures("review_runtime")
+
 
 V15 = "gold-editorial-15"
 CEREMONY = (
@@ -363,7 +367,7 @@ def test_native_run_repairs_instead_of_failing_and_packet_keeps_the_record(tmp_p
         context_assessments=[assessment(actor="not_applicable")],
     )
     store, run, provider = setup_run(tmp_path, monkeypatch, [value, r, scope_assessment()])
-    assert run["version"] == ed.VERSION
+    assert run["version"] == REVIEW_RUNTIME
     ed.run_calls(store, run["run_id"], provider, workers=1)
     ed.plan_review(store, run["run_id"])
     ed.run_calls(store, run["run_id"], provider, role="review", workers=1)

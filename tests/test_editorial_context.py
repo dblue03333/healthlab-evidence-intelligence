@@ -15,7 +15,11 @@ from pydantic import ValidationError
 
 from healthlab import editorial as ed
 from healthlab.editorial_review_policy import review_gate, validate_review
+from tests.conftest import REVIEW_RUNTIME
 from tests.test_editorial import WINDOW, row, scope_assessment, setup_run
+
+pytestmark = pytest.mark.usefixtures("review_runtime")
+
 
 TEXT = (
     "Ngày 10/10/2026, Bộ Y tế họp về dự thảo sàng lọc cho người từ 60 tuổi. "
@@ -416,7 +420,7 @@ def test_native_run_carries_context_to_review_and_writer_packet(tmp_path, monkey
         context_assessments=[assessment(actor="not_applicable")],
     )
     store, run, provider = setup_run(tmp_path, monkeypatch, [value, r, scope_assessment()])
-    assert run["version"] == ed.VERSION
+    assert run["version"] == REVIEW_RUNTIME
     ed.run_calls(store, run["run_id"], provider, workers=1)
     ed.plan_review(store, run["run_id"])
     ed.run_calls(store, run["run_id"], provider, role="review", workers=1)

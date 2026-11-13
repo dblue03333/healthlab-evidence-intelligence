@@ -12,6 +12,9 @@ from healthlab.store import RunStore
 from tests.editorial_legacy import canonical_v12
 from tests.test_data_pilot import execute, transport
 
+pytestmark = pytest.mark.usefixtures("review_runtime")
+
+
 WINDOW = {"mindate": "2026-10-03", "maxdate": "2026-10-16"}
 QUOTE = "Chương trình thí điểm phục hồi chức năng bắt đầu ngày 10/10/2026 tại Việt Nam."
 BODY = QUOTE + " Hỗ trợ nhóm trên 65 tuổi tự sinh hoạt tại nhà."

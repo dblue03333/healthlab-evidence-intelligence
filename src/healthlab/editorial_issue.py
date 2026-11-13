@@ -62,6 +62,7 @@ REASONS = {
     "blocking_findings": "Reviewer nêu lỗi chặn trong dữ kiện",
     "article_level_finding": "Reviewer nêu lỗi ở cấp cả bài (chủ đề hoặc nguồn gốc bài)",
     "topic_passage_missing": "Reviewer không chỉ ra đoạn nào chứng minh bài đúng chủ đề",
+    "topic_not_relevant": "AI phân loại cho rằng bài không thuộc chủ đề già hoá/tuổi thọ",
 }
 # Reviewer flags on released facts (fact-flags-1); shown only in the approval preview.
 FLAGS = {
@@ -291,11 +292,14 @@ def _draft_body(draft, by_id, evidence_quotes):
             if evidence_quotes:
                 for eid in claim.evidence_ids:
                     e = by_id[eid]
-                    quotes = [s["quote"] for s in e.get("supporting_passages") or [e]]
-                    for quote in quotes:
+                    quotes = [(eid, s["quote"]) for s in e.get("supporting_passages") or [e]]
+                    # A date taken from another passage is shown so the approver can check it.
+                    if (e.get("date_evidence") or {}).get("quote"):
+                        quotes.append((f"{eid} (ngày)", e["date_evidence"]["quote"]))
+                    for label, quote in quotes:
                         parts.append(
                             '<blockquote style="color:#555;border-left:3px solid #ccc;'
-                            f'margin:4px 0 8px;padding-left:10px">{esc(eid)}: {esc(quote)}</blockquote>'
+                            f'margin:4px 0 8px;padding-left:10px">{esc(label)}: {esc(quote)}</blockquote>'
                         )
                     for flag in e.get("review_flags") or []:
                         parts.append(

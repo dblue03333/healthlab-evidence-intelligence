@@ -7,6 +7,9 @@ from tests.test_editorial import WINDOW, proposal, row, scope_assessment, setup_
 from tests.test_editorial_context import assessment, review
 from tests.test_editorial_recovery import child_run, live_output
 
+pytestmark = pytest.mark.usefixtures("review_runtime")
+
+
 REVIEW = review(
     topic_passage_ids=["P2"],
     supported_date_fact_indexes=[],

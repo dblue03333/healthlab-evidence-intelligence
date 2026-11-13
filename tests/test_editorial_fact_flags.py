@@ -8,16 +8,22 @@ import copy
 import json
 from types import SimpleNamespace
 
+import pytest
+
 from healthlab import editorial as ed
 from healthlab.editorial_issue import _draft_body
 from healthlab.editorial_review_policy import RELEASE_POLICY, review_gate
 from tests.test_editorial import WINDOW, row
 from tests.test_editorial_context import IDS, NULL_CONTEXT, TEXT, assessment, context, raw, review
 
+pytestmark = pytest.mark.usefixtures("review_runtime")
+
+
 V16 = "gold-editorial-16"
+V17 = "gold-editorial-17"
 
 
-def canonical(value=None, version=ed.VERSION):
+def canonical(value=None, version=V17):
     article = row(TEXT)
     return ed.canonical_proposal(
         ed.resolve_reference_ids(value or raw(), article, version=version),
@@ -59,7 +65,7 @@ def finding(code, indexes):
 
 
 def test_policy_is_recorded_only_from_gold_editorial_17():
-    assert ed.VERSION == "gold-editorial-17" and V16 in ed.READ_VERSIONS
+    assert {V16, V17} <= ed.READ_VERSIONS
     assert canonical()["release_policy"] == RELEASE_POLICY
     assert "release_policy" not in canonical(version=V16)
 

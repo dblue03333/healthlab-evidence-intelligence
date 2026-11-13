@@ -32,6 +32,16 @@ RELEASE_POLICY = "fact-flags-1"
 RELEASE_POLICY_VERSIONS = {"gold-editorial-17"}
 # Findings about the whole article block it even when they name facts.
 ARTICLE_FINDING_CODES = {"topic_not_supported", "origin_unverified"}
+# topic-only-1 (gold-editorial-18): sources are trusted publishers, so no AI reviewer judges
+# whether facts are right. The classifier's topic call plus the independent scope check
+# decide relevance; code still checks literal quotes and in-window dates, and the human
+# approver reads the source and draft before anything is sent.
+TOPIC_ONLY_POLICY = "topic-only-1"
+TOPIC_ONLY_VERSIONS = {"gold-editorial-18"}
+
+
+def ai_review_required(version):
+    return version not in TOPIC_ONLY_VERSIONS
 
 
 def fact_date_supported(fact, *, policy=None, publication_date=None):
@@ -389,6 +399,35 @@ def validate_review(payload, proposal, passage_ids, window=None):
         value["newsletter_eligible"] = eligible
         return review_model.model_validate(value).model_dump()
     return review.model_dump()
+
+
+def topic_gate(proposal, window):
+    """Release gate under topic-only-1; the scope gate is combined by the caller."""
+    reasons = []
+    if not proposal["newsletter_candidate"]:
+        reasons.append("primary_not_newsletter_candidate")
+    if proposal["relevance"] != "relevant":
+        reasons.append("topic_not_relevant")
+    facts = [
+        {
+            "fact_index": check["fact_index"],
+            "released": True,
+            "drop_reasons": [],
+            "flags": [],
+            "in_window_date": bool(
+                check["literal_date_supported"] and check["inside_inclusive_window"] is True
+            ),
+        }
+        for check in (fact_date_checks(proposal, window) if window else [])
+    ]
+    if not any(f["in_window_date"] for f in facts):
+        reasons.append("supported_in_window_development_missing")
+    return {
+        "eligible": not reasons,
+        "reasons": reasons,
+        "release_policy": TOPIC_ONLY_POLICY,
+        "facts": facts,
+    }
 
 
 def review_gate(proposal, review, passage_ids, window=None):

@@ -12,6 +12,9 @@ from healthlab.provider import Completion
 from healthlab.store import RunStore, json_bytes
 from tests.test_editorial import proposal, scope_assessment, setup_run
 
+pytestmark = pytest.mark.usefixtures("review_runtime")
+
+
 REVIEW = dict(
     relevance="relevant",
     newsletter_eligible=True,

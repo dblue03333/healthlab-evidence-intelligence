@@ -10,6 +10,8 @@ from tests.editorial_legacy import resolve_v12
 from tests.test_editorial import WINDOW, linked_proposal, proposal, row, scope_assessment, setup_run
 from tests.test_editorial_review_policy import review
 
+pytestmark = pytest.mark.usefixtures("review_runtime")
+
 
 def test_scope_prompt_is_full_source_and_cannot_receive_the_first_proposal():
     prompt, _ = ed.messages("scope", row(), WINDOW)

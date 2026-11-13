@@ -8,7 +8,7 @@ from healthlab.editorial.contracts import CONTEXT_CONTRACTS, passage_inputs
 from healthlab.editorial.packet import evidence_packet
 from healthlab.editorial.prompts import messages
 from healthlab.editorial.runs import allocated_calls, jobs, load
-from healthlab.editorial_review_policy import ContextReview, validate_review
+from healthlab.editorial_review_policy import ContextReview, ai_review_required, validate_review
 from healthlab.editorial_scope import validate_scope
 from healthlab.evidence import decode_model_json
 from healthlab.store import json_bytes
@@ -17,6 +17,8 @@ from healthlab.store import json_bytes
 def plan_review(store, run_id, *, excluded_sample=16, all_articles=False):
     with runner_lock(store.root):
         run, records = load(store, run_id, for_inference=True)
+        if not ai_review_required(run["version"]):
+            raise ValueError(f"{run['version']} has no AI review step; plan scope, then draft")
         if "review" in run["prepared_review_roles"]:
             return run
         if any(j["role"] == "classify" and j["status"] == "prepared" for j in jobs(store, run)):
@@ -136,6 +138,8 @@ def plan_draft(store, run_id):
 def adopt_reviewed(store, run_id, parent_id):
     """Adopt the parent's review and scope results where the prompt is byte-identical.
 
+    Versions without an AI review step adopt scope results only.
+
     Runs after adopt_previous. Each parent call is re-validated under this run's rules and
     adopted only if this run would send exactly the same prompt; any other selected article
     gets a prepared job that needs a new call. Parent charges were already counted.
@@ -166,9 +170,10 @@ def adopt_reviewed(store, run_id, parent_id):
             "review": parent.get("review_scope", {}).get("selected_document_ids", []),
             "scope": parent.get("scope_plan", {}).get("selected_document_ids", []),
         }
-        counts = {"review": [0, 0], "scope": [0, 0]}
+        roles = ("review", "scope") if ai_review_required(run["version"]) else ("scope",)
+        counts = {role: [0, 0] for role in roles}
         new_jobs = []
-        for role in ("review", "scope"):
+        for role in roles:
             for identifier in selections[role]:
                 if role == "review" and identifier not in proposals:
                     continue  # No valid proposal here; the article stays unresolved.
@@ -194,9 +199,10 @@ def adopt_reviewed(store, run_id, parent_id):
         for job in new_jobs:
             store.save(job)
             run["jobs"].append(job["run_id"])
-        run["review_scope"] = dict(parent.get("review_scope", {}), adopted_from=parent_id)
+        if "review" in roles:
+            run["review_scope"] = dict(parent.get("review_scope", {}), adopted_from=parent_id)
         run["scope_plan"] = dict(parent.get("scope_plan", {}), adopted_from=parent_id)
-        run["prepared_review_roles"] = ["review", "scope"]
+        run["prepared_review_roles"] = list(roles)
         store.save(run)
         return {
             "run_id": run_id,

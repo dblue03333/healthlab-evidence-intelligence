@@ -2,6 +2,8 @@
 
 import json
 
+import pytest
+
 from healthlab import editorial as ed
 from healthlab.editorial_review_policy import fact_date_checks, validate_review
 from healthlab.store import json_bytes
@@ -9,6 +11,9 @@ from tests import test_editorial as fixtures
 from tests.test_editorial import WINDOW, row, scope_assessment, setup_run
 from tests.test_editorial_context import TEXT, raw, review
 from tests.test_editorial_recovery import child_run
+
+pytestmark = pytest.mark.usefixtures("review_runtime")
+
 
 V15 = "gold-editorial-15"
 HYPHENATED = TEXT.replace("10/10/2026", "10-10-2026")
