@@ -19,11 +19,15 @@ from healthlab.editorial_dates import DATE_POLICY, DATE_POLICY_VERSIONS, editori
 from healthlab.editorial_origin import footer_attributions
 from healthlab.editorial_passages import POLICY as PASSAGE_POLICY
 from healthlab.editorial_passages import editorial_passages
-from healthlab.editorial_review_policy import fact_date_supported
+from healthlab.editorial_review_policy import (
+    RELEASE_POLICY,
+    RELEASE_POLICY_VERSIONS,
+    fact_date_supported,
+)
 from healthlab.models import Contract
 from healthlab.signal.triage import source_passages
 
-VERSION = "gold-editorial-16"
+VERSION = "gold-editorial-17"
 # Finished known schemas stay readable; inference and mutations require the exact
 # current runtime. Legacy review findings never silently acquire new semantics.
 READ_VERSIONS = {
@@ -42,6 +46,7 @@ READ_VERSIONS = {
     "gold-editorial-13",
     "gold-editorial-14",
     "gold-editorial-15",
+    "gold-editorial-16",
     VERSION,
 }
 # Context contract per version: v14 rejects invalid bindings; later versions repair or drop them.
@@ -49,6 +54,7 @@ CONTEXT_CONTRACTS = {
     "gold-editorial-14": "fact-context-1",
     "gold-editorial-15": "fact-context-2",
     "gold-editorial-16": "fact-context-2",
+    "gold-editorial-17": "fact-context-2",
 }
 MAX_BODY_CHARS = 20_000
 
@@ -506,4 +512,6 @@ def canonical_proposal(value, article, window, *, version=VERSION):
         result["date_policy"] = date_policy
         result["publication_date"] = publication_date
         result["trusted_origin_hosts"] = trusted_hosts if trusted_repost else []
+    if version in RELEASE_POLICY_VERSIONS:
+        result["release_policy"] = RELEASE_POLICY
     return result

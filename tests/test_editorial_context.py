@@ -431,7 +431,8 @@ def test_native_run_carries_context_to_review_and_writer_packet(tmp_path, monkey
     assert json.loads(prompt[1]["content"])["evidence"][0]["context"] == evidence[0]["context"]
 
 
-def test_native_review_marking_context_missing_keeps_fact_out_of_packet(tmp_path, monkeypatch):
+def test_native_review_marking_context_missing_flags_fact_in_packet(tmp_path, monkeypatch):
+    # gold-editorial-17 (fact-flags-1): missing context is shown to the approver, not a block.
     r = review(
         topic_passage_ids=["P2"],
         supported_date_fact_indexes=[],
@@ -453,5 +454,7 @@ def test_native_review_marking_context_missing_keeps_fact_out_of_packet(tmp_path
     ed.plan_scope(store, run["run_id"])
     ed.run_calls(store, run["run_id"], provider, role="scope", workers=1)
     packet = ed.evidence_packet(store, run["run_id"])
-    assert packet["draft_evidence"] == []
-    assert "context_support_incomplete" in packet["articles"][0]["review_gate"]["reasons"]
+    gate = packet["articles"][0]["review_gate"]
+    assert gate["eligible"] and not gate["review_clean"]
+    [evidence] = packet["draft_evidence"]
+    assert evidence["review_flags"] == ["context_missing:population"]

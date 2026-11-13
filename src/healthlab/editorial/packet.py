@@ -50,10 +50,11 @@ def evidence_packet(store, run_id):
         scope = scopes.get(job["document_id"])
         scope_result = scope_gate(scope, units) if requires_scope_assessment(run) else None
         if scope_result:
-            gate = {
-                "eligible": gate["eligible"] and scope_result["eligible"],
-                "reasons": gate["reasons"] + scope_result["reasons"],
-            }
+            gate = dict(
+                gate,
+                eligible=gate["eligible"] and scope_result["eligible"],
+                reasons=gate["reasons"] + scope_result["reasons"],
+            )
         eligible = gate["eligible"]
         articles.append(
             dict(
@@ -69,7 +70,15 @@ def evidence_packet(store, run_id):
             )
         )
         if eligible:
-            for index in review["supported_fact_indexes"]:
+            # fact-flags-1 passes every undropped fact with its reviewer flags; earlier
+            # policies pass only reviewer-supported facts.
+            flagged = (
+                {f["fact_index"]: f["flags"] for f in gate["facts"] if f["released"]}
+                if "facts" in gate
+                else None
+            )
+            indexes = sorted(flagged) if flagged is not None else review["supported_fact_indexes"]
+            for index in indexes:
                 f = p["resolved_facts"][index]
                 if f.get("date_evidence") and index not in review.get(
                     "supported_date_fact_indexes", []
@@ -86,6 +95,7 @@ def evidence_packet(store, run_id):
                         title=row["title"],
                         raw_sha256=row["raw_sha256"],
                         **f,
+                        **({"review_flags": flagged[index]} if flagged is not None else {}),
                     )
                 )
     return {

@@ -60,6 +60,17 @@ REASONS = {
     "context_support_incomplete": "Dữ kiện thiếu ngữ cảnh (chủ thể hoặc đối tượng) được nguồn hỗ trợ",
     "topic_unresolved_or_disagreed": "Reviewer không đồng ý bài thuộc chủ đề già hoá/tuổi thọ",
     "blocking_findings": "Reviewer nêu lỗi chặn trong dữ kiện",
+    "article_level_finding": "Reviewer nêu lỗi ở cấp cả bài (chủ đề hoặc nguồn gốc bài)",
+    "topic_passage_missing": "Reviewer không chỉ ra đoạn nào chứng minh bài đúng chủ đề",
+}
+# Reviewer flags on released facts (fact-flags-1); shown only in the approval preview.
+FLAGS = {
+    "reviewer_not_confirmed": "Reviewer chưa xác nhận dữ kiện này khớp với nguồn",
+    "citation_incomplete": "Reviewer cho rằng trích dẫn chưa đủ cho toàn bộ câu",
+    "context_missing:actor": "Thiếu chủ thể (ai thực hiện) trong đoạn nguồn",
+    "context_missing:document": "Thiếu tên văn bản/chương trình trong đoạn nguồn",
+    "context_missing:population": "Thiếu đối tượng hưởng lợi trong đoạn nguồn",
+    "context_missing:status": "Thiếu trạng thái (đã làm/đang/dự kiến) trong đoạn nguồn",
 }
 
 
@@ -285,6 +296,11 @@ def _draft_body(draft, by_id, evidence_quotes):
                         parts.append(
                             '<blockquote style="color:#555;border-left:3px solid #ccc;'
                             f'margin:4px 0 8px;padding-left:10px">{esc(eid)}: {esc(quote)}</blockquote>'
+                        )
+                    for flag in e.get("review_flags") or []:
+                        parts.append(
+                            '<p style="color:#8a4b00;font-size:14px;margin:0 0 6px 13px">'
+                            f"⚠ Cần xem ({esc(eid)}): {esc(FLAGS.get(flag, flag))}</p>"
                         )
         lines += ["Ý nghĩa: " + section.interpretation, "Giới hạn: " + section.uncertainty]
         parts.append(f"<p><b>Ý nghĩa:</b> {esc(section.interpretation)}</p>")

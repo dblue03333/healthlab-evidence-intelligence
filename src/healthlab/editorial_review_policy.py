@@ -25,6 +25,13 @@ READ_REVIEW_VERSIONS = {
     "editorial-review-5",
     "editorial-review-6",
 }
+# fact-flags-1 (gold-editorial-17): reviewer doubts on a fact are flags for the human
+# approver, not article blockers. Topic, source-bound quotes and code-checked in-window
+# dates still gate release; a reviewer finding drops only the facts it names.
+RELEASE_POLICY = "fact-flags-1"
+RELEASE_POLICY_VERSIONS = {"gold-editorial-17"}
+# Findings about the whole article block it even when they name facts.
+ARTICLE_FINDING_CODES = {"topic_not_supported", "origin_unverified"}
 
 
 def fact_date_supported(fact, *, policy=None, publication_date=None):
@@ -228,6 +235,61 @@ def supported_development(proposal, review, window):
     )
 
 
+def fact_release(proposal, review, window):
+    """Per-fact release under fact-flags-1; review must already be validated.
+
+    A fact is dropped only by a reviewer finding that names it, or when its cross-passage
+    date link was not confirmed. Missing reviewer confirmation, citation or context are
+    flags shown to the human approver.
+    """
+    citations = review["review_version"] in {"editorial-review-5", "editorial-review-6"}
+    assessments = {a["fact_index"]: a for a in review.get("context_assessments") or []}
+    incomplete = {
+        i
+        for f in review["blocking_findings"]
+        if f["code"] == "citation_incomplete"
+        for i in f["fact_indexes"]
+    }
+    result = []
+    for check in fact_date_checks(proposal, window):
+        index = check["fact_index"]
+        dropped = sorted(
+            {
+                f"reviewer_finding:{f['code']}"
+                for f in review["blocking_findings"]
+                if f["code"] != "citation_incomplete" and index in f["fact_indexes"]
+            }
+        )
+        if check["cross_passage_link_requires_review"] and index not in review.get(
+            "supported_date_fact_indexes", []
+        ):
+            dropped.append("cross_passage_date_unconfirmed")
+        flags = []
+        if index not in review["supported_fact_indexes"]:
+            flags.append("reviewer_not_confirmed")
+        if citations and (
+            index in incomplete or index not in review["supported_citation_fact_indexes"]
+        ):
+            flags.append("citation_incomplete")
+        flags.extend(
+            f"context_missing:{facet}"
+            for facet in FACETS
+            if assessments.get(index, {}).get(facet) == "missing"
+        )
+        result.append(
+            {
+                "fact_index": index,
+                "released": not dropped,
+                "drop_reasons": dropped,
+                "flags": flags,
+                "in_window_date": bool(
+                    check["literal_date_supported"] and check["inside_inclusive_window"] is True
+                ),
+            }
+        )
+    return result
+
+
 def validate_review(payload, proposal, passage_ids, window=None):
     contextual = payload.get("review_version") == "editorial-review-6"
     citations = payload.get("review_version") in {"editorial-review-5", "editorial-review-6"}
@@ -342,6 +404,8 @@ def review_gate(proposal, review, passage_ids, window=None):
         value = validate_review(review, proposal, passage_ids, window)
     except ValueError:
         return {"eligible": False, "reasons": ["review_contract_invalid"]}
+    if proposal.get("release_policy") == RELEASE_POLICY:
+        return _flag_gate(proposal, value, window)
     reasons = []
     if not proposal["newsletter_candidate"]:
         reasons.append("primary_not_newsletter_candidate")
@@ -361,3 +425,29 @@ def review_gate(proposal, review, passage_ids, window=None):
     if not supported_development(proposal, value, window):
         reasons.append("supported_in_window_development_missing")
     return {"eligible": not reasons, "reasons": reasons}
+
+
+def _flag_gate(proposal, value, window):
+    reasons = []
+    if not proposal["newsletter_candidate"]:
+        reasons.append("primary_not_newsletter_candidate")
+    if value["relevance"] != "relevant" or proposal["relevance"] != "relevant":
+        reasons.append("topic_unresolved_or_disagreed")
+    if not value["topic_passage_ids"]:
+        reasons.append("topic_passage_missing")
+    if any(
+        f["code"] in ARTICLE_FINDING_CODES or not f["fact_indexes"]
+        for f in value["blocking_findings"]
+    ):
+        reasons.append("article_level_finding")
+    facts = fact_release(proposal, value, window) if window else []
+    # Same code as earlier policies so date-review reports and watchlists still apply.
+    if not any(f["released"] and f["in_window_date"] for f in facts):
+        reasons.append("supported_in_window_development_missing")
+    return {
+        "eligible": not reasons,
+        "reasons": reasons,
+        "release_policy": RELEASE_POLICY,
+        "review_clean": value["newsletter_eligible"],
+        "facts": facts,
+    }
