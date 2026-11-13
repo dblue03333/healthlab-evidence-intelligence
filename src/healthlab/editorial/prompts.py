@@ -285,7 +285,9 @@ code-resolved from the publication year and must still belong to this fact's eve
         if passage_policy(version) == PASSAGE_POLICY:
             content["article"]["passage_policy"] = PASSAGE_POLICY
     if proposal is not None:
-        content["first_proposal"] = proposal
+        # The release policy is a code gate, not evidence; leaving it out keeps the review
+        # prompt identical across release policies so earlier reviews can be adopted.
+        content["first_proposal"] = {k: v for k, v in proposal.items() if k != "release_policy"}
         if role == "review":
             content["code_date_checks"] = fact_date_checks(proposal, window)
     if evidence is not None:
