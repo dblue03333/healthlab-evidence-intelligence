@@ -10,8 +10,8 @@ import re
 import uuid
 from contextlib import contextmanager
 
+from healthlab.common import utc_now
 from healthlab.models import MANIFEST_VERSION, IngestionError
-from healthlab.pubmed import utc_now
 from healthlab.signal.storage import CollectionStorage
 from healthlab.store import json_bytes
 

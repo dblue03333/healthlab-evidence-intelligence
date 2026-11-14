@@ -5,8 +5,8 @@ import json
 import pytest
 
 from healthlab import editorial as ed
-from healthlab.editorial_review_policy import SemanticReview, fact_date_checks, validate_review
-from healthlab.editorial_review_policy import review_gate as gate
+from healthlab.editorial.review_policy import SemanticReview, fact_date_checks, validate_review
+from healthlab.editorial.review_policy import review_gate as gate
 from tests.editorial_legacy import canonical_v12
 from tests.test_editorial import WINDOW, linked_proposal, proposal, row, setup_run
 

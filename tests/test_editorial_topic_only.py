@@ -10,8 +10,8 @@ import pytest
 
 from healthlab import editorial as ed
 from healthlab.editorial import runs
-from healthlab.editorial_issue import _draft_body
-from healthlab.editorial_review_policy import (
+from healthlab.editorial.issue import _draft_body
+from healthlab.editorial.review_policy import (
     RELEASE_POLICY,
     TOPIC_ONLY_POLICY,
     ai_review_required,

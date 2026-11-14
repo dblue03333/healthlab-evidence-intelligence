@@ -73,3 +73,34 @@ def editorial_passages(text):
             while start < end and text[start].isspace():
                 start += 1
     return units
+
+
+def source_passages(document):
+    """Deterministic sentence-like slices. IDs resolve to exact Unicode offsets."""
+    text = document.text
+    spans, start = [], 0
+    for boundary in re.finditer(r"(?<=[.!?])\s+|\n+", text):
+        spans.append((start, boundary.start()))
+        start = boundary.end()
+    spans.append((start, len(text)))
+    units = []
+    for start, end in spans:
+        while start < end:
+            stop = min(start + 1800, end)
+            if stop < end:
+                split = text.rfind(" ", start, stop)
+                if split > start:
+                    stop = split
+            if text[start:stop].strip():
+                units.append(
+                    {
+                        "passage_id": f"P{len(units) + 1}",
+                        "start": start,
+                        "end": stop,
+                        "quote": text[start:stop],
+                    }
+                )
+            start = stop
+            while start < end and text[start].isspace():
+                start += 1
+    return units

@@ -9,24 +9,24 @@ back by a gate. The approver may promote one into a "side news" section. Its fac
 classifier's source-bound statements with literal quotes and reported status; no model call
 is made, and promotion is a revision that clears any approval.
 
-When a second-model recall check has run (editorial_recall), the preview also lists the
+When a second-model recall check has run (editorial/recall.py), the preview also lists the
 articles it flags as possibly missed. One without classifier facts is promoted with a
 sentence the approver writes (--text, --status), bound to the passages the check cited.
 The approval records which flags were promoted, so these decisions become labels.
 
 The issue pins the writer's draft, the exact evidence packet it was given and the source
 dataset. Every claim must cite pinned evidence whose quote still matches the frozen body.
-Approval binds one issue version; any revision clears it. Email reuses the Signal delivery
-ledger, so a rerun never resends an accepted, pending or unknown receipt.
+Approval binds one issue version; any revision clears it. Email goes through the delivery
+ledger in editorial/mail.py, so a rerun never resends an accepted, pending or unknown receipt.
 
 Usage (repo root):
-    python -m healthlab.editorial_issue --store STORE --source-store DATA create RUN_ID
-    python -m healthlab.editorial_issue --store STORE --source-store DATA preview ISSUE_ID
-    python -m healthlab.editorial_issue ... approve ISSUE_ID --expected-version V --reviewer R --rationale T
-    python -m healthlab.editorial_issue ... revise ISSUE_ID --expected-version V --content draft.json
-    python -m healthlab.editorial_issue ... promote ISSUE_ID --expected-version V --document-id D [--facts 0,1]
-    python -m healthlab.editorial_issue ... promote ISSUE_ID --expected-version V --document-id D --text T --status S
-    python -m healthlab.editorial_issue ... email ISSUE_ID [--send]
+    python -m healthlab.editorial.issue --store STORE --source-store DATA create RUN_ID
+    python -m healthlab.editorial.issue --store STORE --source-store DATA preview ISSUE_ID
+    python -m healthlab.editorial.issue ... approve ISSUE_ID --expected-version V --reviewer R --rationale T
+    python -m healthlab.editorial.issue ... revise ISSUE_ID --expected-version V --content draft.json
+    python -m healthlab.editorial.issue ... promote ISSUE_ID --expected-version V --document-id D [--facts 0,1]
+    python -m healthlab.editorial.issue ... promote ISSUE_ID --expected-version V --document-id D --text T --status S
+    python -m healthlab.editorial.issue ... email ISSUE_ID [--send]
 """
 
 import argparse
@@ -44,18 +44,17 @@ from pathlib import Path
 from dotenv import load_dotenv
 from pydantic import Field
 
+from healthlab.common import utc_now, write_text_atomic
 from healthlab.data.datasets import read_dataset
 from healthlab.data.pilot import runner_lock
 from healthlab.editorial.contracts import EditorialDraft
+from healthlab.editorial.mail import deliver, mailbox
 from healthlab.editorial.packet import evidence_packet, requires_scope_assessment
+from healthlab.editorial.recall import summary as recall_summary
+from healthlab.editorial.review_policy import fact_time_basis, relative_time_words
 from healthlab.editorial.runs import jobs, load
-from healthlab.editorial_recall import summary as recall_summary
-from healthlab.editorial_review_policy import fact_time_basis, relative_time_words
 from healthlab.models import Contract, IngestionError
-from healthlab.pubmed import utc_now
-from healthlab.signal.newsletter import deliver, mailbox
 from healthlab.store import RunStore, json_bytes
-from healthlab.synthesis import write_preview
 
 VERSION = "editorial-issue-1"
 MODE = "editorial_issue"
@@ -650,7 +649,7 @@ def _no_release_body(digest):
 
 def _promote_command(issue, document_id):
     return (
-        f"python -m healthlab.editorial_issue --store STORE --source-store DATA promote "
+        f"python -m healthlab.editorial.issue --store STORE --source-store DATA promote "
         f"{issue['run_id']} --expected-version {issue['issue_sha256']} "
         f"--document-id {document_id}"
     )
@@ -854,10 +853,10 @@ def render_preview(store, issue_id):
         time_words=found,
         recall=recall_summary(store, issue["editorial_run_id"]),
     )
-    write_preview(directory / "newsletter.txt", text)
-    write_preview(directory / "newsletter.html", markup)
+    write_text_atomic(directory / "newsletter.txt", text)
+    write_text_atomic(directory / "newsletter.html", markup)
     content = draft if issue.get("kind") == NO_RELEASE else draft.model_dump()
-    write_preview(
+    write_text_atomic(
         directory / ("digest.json" if issue.get("kind") == NO_RELEASE else "draft.json"),
         json.dumps(content, ensure_ascii=False, indent=2),
     )

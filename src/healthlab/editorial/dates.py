@@ -3,7 +3,60 @@
 import re
 from datetime import date
 
-from healthlab.signal.triage_v5 import literal_dates
+_MONTHS = {
+    name.lower(): i
+    for i, name in enumerate(
+        (
+            "January",
+            "February",
+            "March",
+            "April",
+            "May",
+            "June",
+            "July",
+            "August",
+            "September",
+            "October",
+            "November",
+            "December",
+        ),
+        1,
+    )
+}
+_DATES = re.compile(
+    r"(?<!\d)(?:(?P<iso_y>20\d{2})-(?P<iso_m>\d{2})-(?P<iso_d>\d{2})"
+    r"|(?P<d>\d{1,2})\s*/\s*(?P<m>\d{1,2})\s*/\s*(?P<y>20\d{2})"
+    r"|ngày\s+(?P<vd>\d{1,2})\s+tháng\s+(?P<vm>\d{1,2})\s+năm\s+(?P<vy>20\d{2})"
+    r"|(?P<ed>\d{1,2})\s+(?P<em>" + "|".join(_MONTHS) + r")\s+(?P<ey>20\d{2})"
+    r"|(?P<am>" + "|".join(_MONTHS) + r")\s+(?P<ad>\d{1,2}),?\s+(?P<ay>20\d{2}))"
+    r"(?!\d)",
+    re.I,
+)
+
+
+def literal_dates(text):
+    """Only explicit complete calendar dates. A year is never inferred from publication."""
+    result = []
+    for match in _DATES.finditer(text):
+        g = match.groupdict()
+        try:
+            if g["iso_y"]:
+                value = date(int(g["iso_y"]), int(g["iso_m"]), int(g["iso_d"]))
+            elif g["y"]:
+                value = date(int(g["y"]), int(g["m"]), int(g["d"]))
+            elif g["vy"]:
+                value = date(int(g["vy"]), int(g["vm"]), int(g["vd"]))
+            elif g["ey"]:
+                value = date(int(g["ey"]), _MONTHS[g["em"].lower()], int(g["ed"]))
+            else:
+                value = date(int(g["ay"]), _MONTHS[g["am"].lower()], int(g["ad"]))
+        except ValueError:
+            continue
+        result.append(
+            dict(date=value.isoformat(), start=match.start(), end=match.end(), quote=match[0])
+        )
+    return result
+
 
 DATE_POLICY = "editorial-dates-2"
 DATE_POLICY_VERSIONS = {

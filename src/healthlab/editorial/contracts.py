@@ -5,7 +5,7 @@ from typing import Annotated, Literal
 
 from pydantic import Field, model_validator
 
-from healthlab.editorial_context import (
+from healthlab.editorial.context import (
     MAX_CONTEXT_CHARS,
     BindingRepair,
     FactContext,
@@ -15,11 +15,11 @@ from healthlab.editorial_context import (
     resolve_context,
     validate_context,
 )
-from healthlab.editorial_dates import DATE_POLICY, DATE_POLICY_VERSIONS, editorial_literal_dates
-from healthlab.editorial_origin import footer_attributions
-from healthlab.editorial_passages import POLICY as PASSAGE_POLICY
-from healthlab.editorial_passages import editorial_passages
-from healthlab.editorial_review_policy import (
+from healthlab.editorial.dates import DATE_POLICY, DATE_POLICY_VERSIONS, editorial_literal_dates
+from healthlab.editorial.origin import footer_attributions
+from healthlab.editorial.passages import POLICY as PASSAGE_POLICY
+from healthlab.editorial.passages import editorial_passages, source_passages
+from healthlab.editorial.review_policy import (
     PUBLICATION_WINDOW_POLICY,
     PUBLICATION_WINDOW_VERSIONS,
     RELEASE_POLICY,
@@ -31,7 +31,6 @@ from healthlab.editorial_review_policy import (
     fact_time_basis,
 )
 from healthlab.models import Contract
-from healthlab.signal.triage import source_passages
 
 VERSION = "gold-editorial-19"
 # Finished known schemas stay readable; inference and mutations require the exact

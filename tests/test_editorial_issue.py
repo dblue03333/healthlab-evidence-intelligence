@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import pytest
 
 from healthlab import editorial as ed
-from healthlab import editorial_issue as issue_mod
+from healthlab.editorial import issue as issue_mod
 from healthlab.store import RunStore
 from tests.test_editorial import proposal, scope_assessment, setup_run
 

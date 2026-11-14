@@ -12,8 +12,8 @@ never turns a finished editorial run into a read-only archive.
 Results are saved after every article. A rerun calls only articles without a valid result.
 
 Usage (repo root):
-    python -m healthlab.editorial_recall --store STORE check RUN_ID
-    python -m healthlab.editorial_recall --store STORE status RUN_ID
+    python -m healthlab.editorial.recall --store STORE check RUN_ID
+    python -m healthlab.editorial.recall --store STORE status RUN_ID
 """
 
 import argparse
@@ -24,18 +24,17 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from healthlab.common import decode_model_json, utc_now
 from healthlab.config import FPTSettings
 from healthlab.data.pilot import runner_lock
 from healthlab.editorial.contracts import passage_inputs
 from healthlab.editorial.packet import evidence_packet
 from healthlab.editorial.prompts import messages
 from healthlab.editorial.runs import jobs, load
-from healthlab.editorial_scope import validate_scope
-from healthlab.evidence import decode_model_json
+from healthlab.editorial.scope import validate_scope
 from healthlab.models import IngestionError
 from healthlab.pipeline import audit_writer
 from healthlab.provider import FPTProvider
-from healthlab.pubmed import utc_now
 from healthlab.store import RunStore, json_bytes
 
 VERSION = "recall-check-1"

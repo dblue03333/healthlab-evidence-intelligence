@@ -9,9 +9,9 @@ from html.parser import HTMLParser
 
 import httpx
 
+from healthlab.common import utc_now
 from healthlab.models import IngestionError, Question
 from healthlab.pipeline import ingest
-from healthlab.pubmed import utc_now
 from healthlab.signal.contracts import Registry, SourceDocument
 from healthlab.signal.html_adapter import PARSER_VERSION as HTML_PARSER_VERSION
 from healthlab.signal.html_sources import collect_html

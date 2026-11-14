@@ -5,7 +5,7 @@ import hashlib
 import pytest
 
 from healthlab import editorial as ed
-from healthlab.editorial_review_policy import review_gate as policy_gate
+from healthlab.editorial.review_policy import review_gate as policy_gate
 from tests.test_editorial import WINDOW, proposal, setup_run
 
 

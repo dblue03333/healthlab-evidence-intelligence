@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 
+from healthlab.common import decode_model_json
 from healthlab.data.datasets import read_dataset
 from healthlab.data.pilot import runner_lock
 from healthlab.data.supervision import supervised_records
@@ -16,9 +17,8 @@ from healthlab.editorial.contracts import (
     passage_policy,
     resolve_reference_ids,
 )
-from healthlab.editorial_dates import DATE_POLICY_VERSIONS
-from healthlab.editorial_passages import POLICY as PASSAGE_POLICY
-from healthlab.evidence import decode_model_json
+from healthlab.editorial.dates import DATE_POLICY_VERSIONS
+from healthlab.editorial.passages import POLICY as PASSAGE_POLICY
 from healthlab.store import json_bytes
 
 # Bind every module in the editorial workflow and its versioned dependencies.
@@ -33,11 +33,13 @@ _RUNTIME_FILES = (
     "editorial/prompts.py",
     "editorial/report.py",
     "editorial/runs.py",
-    "editorial_passages.py",
-    "editorial_dates.py",
-    "editorial_origin.py",
-    "editorial_review_policy.py",
-    "editorial_scope.py",
+    "editorial/passages.py",
+    "editorial/dates.py",
+    "editorial/origin.py",
+    "editorial/review_policy.py",
+    "editorial/scope.py",
+    "editorial/context.py",
+    "common.py",
     "provider.py",
     "config.py",
 )

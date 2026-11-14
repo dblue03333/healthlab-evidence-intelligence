@@ -12,9 +12,9 @@ from types import SimpleNamespace
 import pytest
 
 from healthlab import editorial as ed
-from healthlab import editorial_issue as issue_mod
-from healthlab import editorial_recall as recall
 from healthlab.data.contracts import Gold, Window
+from healthlab.editorial import issue as issue_mod
+from healthlab.editorial import recall as recall
 from healthlab.editorial import runs as editorial_runs
 from healthlab.models import IngestionError
 from healthlab.provider import Completion, FakeProvider
@@ -246,8 +246,8 @@ def test_an_ignored_flag_is_recorded_as_not_included(tmp_path, monkeypatch):
 
 def test_the_recall_check_is_outside_the_editorial_runtime_fingerprint():
     # Adding or changing this check must not turn a finished editorial run read-only.
-    assert "editorial_recall.py" not in editorial_runs._RUNTIME_FILES
-    assert "editorial_issue.py" not in editorial_runs._RUNTIME_FILES
+    for name in ("editorial/recall.py", "editorial/issue.py", "editorial/mail.py"):
+        assert name not in editorial_runs._RUNTIME_FILES
 
 
 def test_recall_provider_uses_glm_with_provider_default_thinking(monkeypatch):

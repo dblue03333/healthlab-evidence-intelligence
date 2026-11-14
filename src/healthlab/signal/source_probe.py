@@ -8,8 +8,8 @@ from urllib.parse import urldefrag, urljoin, urlsplit
 import httpx
 from pydantic import Field, field_validator
 
+from healthlab.common import utc_now
 from healthlab.models import Contract, IngestionError
-from healthlab.pubmed import utc_now
 from healthlab.signal.contracts import Text, public_url
 from healthlab.signal.source_http import source_client
 

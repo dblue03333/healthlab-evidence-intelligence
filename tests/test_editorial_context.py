@@ -14,7 +14,7 @@ import pytest
 from pydantic import ValidationError
 
 from healthlab import editorial as ed
-from healthlab.editorial_review_policy import review_gate, validate_review
+from healthlab.editorial.review_policy import review_gate, validate_review
 from tests.conftest import REVIEW_RUNTIME
 from tests.test_editorial import WINDOW, row, scope_assessment, setup_run
 

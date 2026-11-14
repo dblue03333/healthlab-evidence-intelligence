@@ -10,13 +10,13 @@ from typing import Literal
 
 from pydantic import Field, StrictInt, model_validator
 
-from healthlab.editorial_context import (
+from healthlab.editorial.context import (
     FACETS,
     ContextAssessment,
     date_is_range_endpoint,
     validate_context,
 )
-from healthlab.editorial_dates import DATE_POLICY, date_role, editorial_literal_dates
+from healthlab.editorial.dates import DATE_POLICY, date_role, editorial_literal_dates
 from healthlab.models import Contract
 
 REVIEW_VERSION = "editorial-review-2"

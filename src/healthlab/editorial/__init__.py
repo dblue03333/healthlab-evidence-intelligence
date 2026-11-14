@@ -1,5 +1,6 @@
 """Public imports for the manual Gold-to-editorial workflow."""
 
+from healthlab.common import decode_model_json
 from healthlab.data.pilot import runner_lock
 from healthlab.editorial.cli import main
 from healthlab.editorial.contracts import (
@@ -32,9 +33,17 @@ from healthlab.editorial.contracts import (
 )
 from healthlab.editorial.inference import run_calls
 from healthlab.editorial.packet import evidence_packet, requires_scope_assessment
+from healthlab.editorial.passages import POLICY as PASSAGE_POLICY
 from healthlab.editorial.planning import adopt_reviewed, plan_draft, plan_review, plan_scope
 from healthlab.editorial.prompts import RUBRIC, article_messages, messages
 from healthlab.editorial.report import export_report
+from healthlab.editorial.review_policy import (
+    CitationReview,
+    ContextReview,
+    SemanticReview,
+    review_gate,
+    validate_review,
+)
 from healthlab.editorial.runs import (
     adopt_previous,
     allocated_calls,
@@ -43,16 +52,7 @@ from healthlab.editorial.runs import (
     load,
     prepare,
 )
-from healthlab.editorial_passages import POLICY as PASSAGE_POLICY
-from healthlab.editorial_review_policy import (
-    CitationReview,
-    ContextReview,
-    SemanticReview,
-    review_gate,
-    validate_review,
-)
-from healthlab.editorial_scope import scope_gate, validate_scope
-from healthlab.evidence import decode_model_json
+from healthlab.editorial.scope import scope_gate, validate_scope
 from healthlab.store import json_bytes
 
 # Review scripts can still import contracts and prompt builders from this entry point.

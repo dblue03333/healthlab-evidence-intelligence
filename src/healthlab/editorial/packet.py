@@ -8,14 +8,14 @@ from healthlab.editorial.contracts import (
     canonical_proposal,
     passage_inputs,
 )
-from healthlab.editorial.runs import jobs, load
-from healthlab.editorial_review_policy import (
+from healthlab.editorial.review_policy import (
     NO_REVIEW_POLICIES,
     PUBLICATION_WINDOW_POLICY,
     review_gate,
     topic_gate,
 )
-from healthlab.editorial_scope import scope_gate
+from healthlab.editorial.runs import jobs, load
+from healthlab.editorial.scope import scope_gate
 
 
 def requires_scope_assessment(run):
