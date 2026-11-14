@@ -4,6 +4,11 @@ A run with a draft becomes a newsletter issue. A fully finished run in which no 
 the release gates becomes a "no qualifying news" digest listing the relevant articles and
 why each was held back; nothing is invented to fill the issue.
 
+The approval preview of a draft also lists near misses: articles judged on topic but held
+back by a gate. The approver may promote one into a "side news" section. Its facts are the
+classifier's source-bound statements with literal quotes and reported status; no model call
+is made, and promotion is a revision that clears any approval.
+
 The issue pins the writer's draft, the exact evidence packet it was given and the source
 dataset. Every claim must cite pinned evidence whose quote still matches the frozen body.
 Approval binds one issue version; any revision clears it. Email reuses the Signal delivery
@@ -14,6 +19,7 @@ Usage (repo root):
     python -m healthlab.editorial_issue --store STORE --source-store DATA preview ISSUE_ID
     python -m healthlab.editorial_issue ... approve ISSUE_ID --expected-version V --reviewer R --rationale T
     python -m healthlab.editorial_issue ... revise ISSUE_ID --expected-version V --content draft.json
+    python -m healthlab.editorial_issue ... promote ISSUE_ID --expected-version V --document-id D [--facts 0,1]
     python -m healthlab.editorial_issue ... email ISSUE_ID [--send]
 """
 
@@ -30,13 +36,14 @@ from email.utils import formatdate
 from pathlib import Path
 
 from dotenv import load_dotenv
+from pydantic import Field
 
 from healthlab.data.datasets import read_dataset
 from healthlab.data.pilot import runner_lock
 from healthlab.editorial.contracts import EditorialDraft
 from healthlab.editorial.packet import evidence_packet, requires_scope_assessment
 from healthlab.editorial.runs import jobs, load
-from healthlab.models import IngestionError
+from healthlab.models import Contract, IngestionError
 from healthlab.pubmed import utc_now
 from healthlab.signal.newsletter import deliver, mailbox
 from healthlab.store import RunStore, json_bytes
@@ -73,6 +80,34 @@ FLAGS = {
     "context_missing:population": "Thiếu đối tượng hưởng lợi trong đoạn nguồn",
     "context_missing:status": "Thiếu trạng thái (đã làm/đang/dự kiến) trong đoạn nguồn",
 }
+# Reported status of a side-news fact, as the classifier read it from the source.
+STATUS = {
+    "proposed": "đề xuất",
+    "announced": "đã công bố, chưa triển khai",
+    "adopted": "đã thông qua",
+    "effective": "có hiệu lực",
+    "pilot": "thí điểm",
+    "operational": "đang triển khai",
+    "published_report": "báo cáo đã công bố",
+}
+SIDE_NEWS_TITLE = "Tin bên lề / Đang chuẩn bị"
+
+
+class SideItem(Contract):
+    text: str = Field(min_length=1, max_length=1200)
+    reported_status: str = Field(min_length=1, max_length=40)
+    evidence_ids: list[str] = Field(min_length=1, max_length=5)
+
+
+class IssueDraft(EditorialDraft):
+    """The writer's draft plus side news the approver promoted; older issues have none."""
+
+    side_news: list[SideItem] = Field(default_factory=list, max_length=10)
+
+
+def _claims(draft):
+    yield from (claim for section in draft.sections for claim in section.facts)
+    yield from getattr(draft, "side_news", ())
 
 
 def _check(draft, evidence, records):
@@ -83,10 +118,9 @@ def _check(draft, evidence, records):
         row = records.get(e["document_id"])
         if row is None or row["body"][e["start"] : e["end"]] != e["quote"]:
             raise ValueError("Evidence quote differs from the frozen article body")
-    for section in draft.sections:
-        for claim in section.facts:
-            if not set(claim.evidence_ids) <= by_id.keys():
-                raise ValueError("Claim cites evidence outside the pinned packet")
+    for claim in _claims(draft):
+        if not set(claim.evidence_ids) <= by_id.keys():
+            raise ValueError("Claim cites evidence outside the pinned packet")
     return by_id
 
 
@@ -106,6 +140,29 @@ def _sources(source_store, dataset_id):
     ]
 
 
+def _near_misses(packet, exclude=()):
+    """Articles judged on topic but held back by a gate, with their source-bound facts."""
+    misses = []
+    for a in packet["articles"]:
+        if a["eligible_for_unapproved_draft"] or a["document_id"] in exclude:
+            continue
+        if "relevant" not in {a["proposal"]["relevance"], (a["review"] or {}).get("relevance")}:
+            continue
+        reasons = list(dict.fromkeys(a["review_gate"]["reasons"]))
+        # "Not a candidate" verdicts are consequences; show them only without a root cause.
+        reasons = [r for r in reasons if r not in DERIVED_REASONS] or reasons
+        misses.append(
+            dict(
+                document_id=a["document_id"],
+                title=a["title"],
+                url=a["url"],
+                reasons=reasons,
+                facts=a["proposal"].get("resolved_facts") or [],
+            )
+        )
+    return misses
+
+
 def _no_release_digest(store, run, records, calls):
     """Summarize a fully finished run in which no fact passed the release gates.
 
@@ -123,21 +180,9 @@ def _no_release_digest(store, run, records, calls):
     packet = evidence_packet(store, run["run_id"])
     if packet["draft_evidence"]:
         raise ValueError("Editorial run has draft evidence but no completed draft; run draft")
-    watchlist = []
-    for a in packet["articles"]:
-        if "relevant" not in {a["proposal"]["relevance"], (a["review"] or {}).get("relevance")}:
-            continue
-        reasons = list(dict.fromkeys(a["review_gate"]["reasons"]))
-        # "Not a candidate" verdicts are consequences; show them only without a root cause.
-        reasons = [r for r in reasons if r not in DERIVED_REASONS] or reasons
-        watchlist.append(
-            {
-                "document_id": a["document_id"],
-                "title": a["title"],
-                "url": a["url"],
-                "reasons": reasons,
-            }
-        )
+    watchlist = [
+        {k: a[k] for k in ("document_id", "title", "url", "reasons")} for a in _near_misses(packet)
+    ]
     return {
         "kind": NO_RELEASE,
         "articles": len(records),
@@ -157,7 +202,7 @@ def create_issue(store, source_store, run_id):
         raise ValueError("Editorial run has more than one completed draft")
     if drafts:
         job = drafts[0]
-        draft = EditorialDraft.model_validate_json(store.read(job["result_sha256"]))
+        draft = IssueDraft.model_validate_json(store.read(job["result_sha256"]))
         evidence = json.loads(store.read(job["evidence_sha256"]))
         _check(draft, evidence, records)
         pinned = dict(
@@ -197,7 +242,7 @@ def load_issue(store, issue_id):
     if issue.get("kind") == NO_RELEASE:
         return issue, json.loads(store.read(issue["issue_sha256"])), None
     _, records = load(store, issue["editorial_run_id"])
-    draft = EditorialDraft.model_validate_json(store.read(issue["issue_sha256"]))
+    draft = IssueDraft.model_validate_json(store.read(issue["issue_sha256"]))
     evidence = json.loads(store.read(issue["evidence_sha256"]))
     by_id = _check(draft, evidence, records)
     return issue, draft, by_id
@@ -214,7 +259,7 @@ def revise(store, issue_id, content, *, expected_version):
             raise ValueError("A no-release digest is generated from the run and cannot be revised")
         if expected_version != issue["issue_sha256"]:
             raise ValueError("Stale issue version; reload before editing")
-        draft = EditorialDraft.model_validate(content)
+        draft = IssueDraft.model_validate(content)
         _, records = load(store, issue["editorial_run_id"])
         _check(draft, json.loads(store.read(issue["evidence_sha256"])), records)
         previous = issue["issue_sha256"]
@@ -223,6 +268,78 @@ def revise(store, issue_id, content, *, expected_version):
             {"previous": previous, "next": issue["issue_sha256"], "created_at": utc_now()}
         )
         # The old approval stays in history but cannot approve this edit.
+        issue.pop("approval_sha256", None)
+        issue["stage"] = "draft_ready"
+        store.save(issue)
+    render_preview(store, issue_id)
+    return issue
+
+
+def promote(store, issue_id, document_id, *, expected_version, fact_indexes=None):
+    """Add a held-back article's source-bound facts to the side-news section.
+
+    The facts are the classifier's statements with literal quotes; nothing is rewritten by
+    a model. Like a revision, this creates a new version and clears any approval.
+    """
+    with runner_lock(store.root):
+        issue, draft, by_id = load_issue(store, issue_id)
+        if issue.get("kind") == NO_RELEASE:
+            raise ValueError("Side news can only be added to an issue with a draft")
+        if expected_version != issue["issue_sha256"]:
+            raise ValueError("Stale issue version; reload before editing")
+        if any(e["document_id"] == document_id for e in by_id.values()):
+            raise ValueError("This article is already in the issue")
+        packet = evidence_packet(store, issue["editorial_run_id"])
+        article = next((a for a in packet["articles"] if a["document_id"] == document_id), None)
+        if article is None:
+            raise ValueError("Article is not in this editorial run")
+        if article["eligible_for_unapproved_draft"]:
+            raise ValueError("Article passed the gates; its facts are already draft evidence")
+        facts = article["proposal"].get("resolved_facts") or []
+        indexes = list(range(len(facts))) if fact_indexes is None else list(fact_indexes)
+        if not indexes or len(set(indexes)) != len(indexes):
+            raise ValueError("Choose at least one fact, each once")
+        if not all(0 <= i < len(facts) for i in indexes):
+            raise ValueError(f"Article has facts 0..{len(facts) - 1}")
+        _, records = load(store, issue["editorial_run_id"])
+        row = records[document_id]
+        evidence = json.loads(store.read(issue["evidence_sha256"]))
+        side = sum(e["evidence_id"].startswith("S") for e in evidence)
+        content = draft.model_dump()
+        for n, index in enumerate(indexes, side + 1):
+            f = facts[index]
+            evidence.append(
+                dict(
+                    evidence_id=f"S{n}",
+                    document_id=document_id,
+                    snapshot_id=row["snapshot_id"],
+                    url=row["url"],
+                    title=row["title"],
+                    raw_sha256=row["raw_sha256"],
+                    promoted_fact_index=index,
+                    **f,
+                )
+            )
+            content["side_news"].append(
+                dict(
+                    text=f["statement"],
+                    reported_status=f["reported_status"],
+                    evidence_ids=[f"S{n}"],
+                )
+            )
+        new = IssueDraft.model_validate(content)
+        _check(new, evidence, records)
+        previous = issue["issue_sha256"]
+        issue["evidence_sha256"] = store.put(json_bytes(evidence))
+        issue["issue_sha256"] = store.put(json_bytes(new.model_dump()))
+        issue.setdefault("revisions", []).append(
+            {
+                "previous": previous,
+                "next": issue["issue_sha256"],
+                "created_at": utc_now(),
+                "promoted": {"document_id": document_id, "fact_indexes": indexes},
+            }
+        )
         issue.pop("approval_sha256", None)
         issue["stage"] = "draft_ready"
         store.save(issue)
@@ -266,41 +383,50 @@ def approval(store, issue):
 
 def _source_numbers(draft, by_id):
     numbers = {}
-    for section in draft.sections:
-        for claim in section.facts:
-            for eid in claim.evidence_ids:
-                numbers.setdefault(by_id[eid]["url"], (len(numbers) + 1, by_id[eid]))
+    for claim in _claims(draft):
+        for eid in claim.evidence_ids:
+            numbers.setdefault(by_id[eid]["url"], (len(numbers) + 1, by_id[eid]))
     return numbers
+
+
+def _quotes(e, label):
+    """Every source passage behind one piece of evidence, for the approval preview."""
+    quotes = [(label, s["quote"]) for s in e.get("supporting_passages") or [e]]
+    # A date taken from another passage is shown so the approver can check it.
+    date_quote = (e.get("date_evidence") or {}).get("quote")
+    if date_quote and date_quote not in {q for _, q in quotes}:
+        quotes.append((f"{label} (ngày)", date_quote))
+    return [
+        '<blockquote style="color:#555;border-left:3px solid #ccc;'
+        f'margin:4px 0 8px;padding-left:10px">{html.escape(k)}: {html.escape(q)}</blockquote>'
+        for k, q in quotes
+    ]
 
 
 def _draft_body(draft, by_id, evidence_quotes):
     esc = html.escape
     numbers = _source_numbers(draft, by_id)
     lines, parts = [], []
+
+    def claim_lines(text, evidence_ids):
+        refs = sorted({numbers[by_id[e]["url"]][0] for e in evidence_ids})
+        lines.append("- " + text + " " + "".join(f"[{n}]" for n in refs))
+        links = "".join(
+            f'<a href="{esc(url, quote=True)}" style="text-decoration:none">[{n}]</a>'
+            for url, (n, _) in numbers.items()
+            if n in refs
+        )
+        parts.append(f"<p>{esc(text)} <sup>{links}</sup></p>")
+
     for section in draft.sections:
         lines += ["", section.title.upper()]
         parts.append(f'<h2 style="font-size:19px;margin-top:28px">{esc(section.title)}</h2>')
         for claim in section.facts:
-            refs = sorted({numbers[by_id[e]["url"]][0] for e in claim.evidence_ids})
-            lines.append("- " + claim.text + " " + "".join(f"[{n}]" for n in refs))
-            links = "".join(
-                f'<a href="{esc(url, quote=True)}" style="text-decoration:none">[{n}]</a>'
-                for url, (n, _) in numbers.items()
-                if n in refs
-            )
-            parts.append(f"<p>{esc(claim.text)} <sup>{links}</sup></p>")
+            claim_lines(claim.text, claim.evidence_ids)
             if evidence_quotes:
                 for eid in claim.evidence_ids:
                     e = by_id[eid]
-                    quotes = [(eid, s["quote"]) for s in e.get("supporting_passages") or [e]]
-                    # A date taken from another passage is shown so the approver can check it.
-                    if (e.get("date_evidence") or {}).get("quote"):
-                        quotes.append((f"{eid} (ngày)", e["date_evidence"]["quote"]))
-                    for label, quote in quotes:
-                        parts.append(
-                            '<blockquote style="color:#555;border-left:3px solid #ccc;'
-                            f'margin:4px 0 8px;padding-left:10px">{esc(label)}: {esc(quote)}</blockquote>'
-                        )
+                    parts += _quotes(e, eid)
                     for flag in e.get("review_flags") or []:
                         parts.append(
                             '<p style="color:#8a4b00;font-size:14px;margin:0 0 6px 13px">'
@@ -309,6 +435,19 @@ def _draft_body(draft, by_id, evidence_quotes):
         lines += ["Ý nghĩa: " + section.interpretation, "Giới hạn: " + section.uncertainty]
         parts.append(f"<p><b>Ý nghĩa:</b> {esc(section.interpretation)}</p>")
         parts.append(f'<p style="color:#555"><b>Giới hạn:</b> {esc(section.uncertainty)}</p>')
+    side_news = getattr(draft, "side_news", ())
+    if side_news:
+        lines += ["", SIDE_NEWS_TITLE.upper()]
+        parts.append(f'<h2 style="font-size:19px;margin-top:28px">{esc(SIDE_NEWS_TITLE)}</h2>')
+        for item in side_news:
+            status = STATUS.get(item.reported_status)
+            claim_lines(
+                item.text + (f" (Trạng thái theo nguồn: {status}.)" if status else ""),
+                item.evidence_ids,
+            )
+            if evidence_quotes:
+                for eid in item.evidence_ids:
+                    parts += _quotes(by_id[eid], eid)
     lines += ["", "NGUỒN"]
     parts.append('<h2 style="font-size:17px;margin-top:28px">Nguồn</h2><ol>')
     for url, (n, e) in numbers.items():
@@ -344,7 +483,45 @@ def _no_release_body(digest):
     return lines, parts, "AI hỗ trợ phân loại và kiểm tra; không có dữ kiện nào được phát hành."
 
 
-def render(issue, content, by_id, *, approved=None, evidence_quotes=False):
+def _near_miss_body(issue, misses):
+    """Preview-only list the approver can promote from; never part of the sent email."""
+    esc = html.escape
+    heading = "Bài đúng chủ đề nhưng bị chặn (chỉ người duyệt thấy)"
+    parts = [
+        f'<hr><h2 style="font-size:19px;margin-top:28px;color:#8a4b00">{esc(heading)}</h2>',
+        '<p style="color:#555;font-size:14px">Nếu muốn đưa một bài vào mục '
+        f"«{esc(SIDE_NEWS_TITLE)}», chạy lệnh <code>promote</code> ghi dưới bài. "
+        "Thêm <code>--facts 0,2</code> để chỉ chọn một số dữ kiện.</p><ol>",
+    ]
+    for a in misses:
+        reasons = "".join(f"<li>{esc(REASONS.get(r, r))}</li>" for r in a["reasons"])
+        facts = []
+        for i, f in enumerate(a["facts"]):
+            status = STATUS.get(f.get("reported_status"))
+            facts.append(
+                f"<li><b>Dữ kiện {i}</b>"
+                + (f" · {esc(status)}" if status else "")
+                + (f" · ngày {esc(f['event_date'])}" if f.get("event_date") else "")
+                + f": {esc(f['statement'])}"
+                + "".join(_quotes(f, f"Nguồn {i}"))
+                + "</li>"
+            )
+        command = (
+            f"python -m healthlab.editorial_issue --store STORE --source-store DATA promote "
+            f"{issue['run_id']} --expected-version {issue['issue_sha256']} "
+            f"--document-id {a['document_id']}"
+        )
+        parts.append(
+            f'<li style="margin-bottom:18px"><a href="{esc(a["url"], quote=True)}">'
+            f'{esc(a["title"])}</a><ul style="color:#555;font-size:14px">{reasons}</ul>'
+            + (f'<ul style="font-size:14px">{"".join(facts)}</ul>' if facts else "")
+            + f'<p style="font-size:12px"><code>{esc(command)}</code></p></li>'
+        )
+    parts.append("</ol>")
+    return parts
+
+
+def render(issue, content, by_id, *, approved=None, evidence_quotes=False, near_misses=()):
     esc = html.escape
     period = issue["question"]
     label = "Đã duyệt nội bộ" if approved else "BẢN NHÁP AI — CHƯA ĐƯỢC DUYỆT"
@@ -373,6 +550,8 @@ def render(issue, content, by_id, *, approved=None, evidence_quotes=False):
     )
     lines += body_lines
     parts += body_parts
+    if near_misses:
+        parts += _near_miss_body(issue, near_misses)
     lines += [
         "",
         "Phạm vi nguồn đã kiểm tra (theo kỳ ngày đăng; không khẳng định đầy đủ toàn website):",
@@ -400,7 +579,11 @@ def render_preview(store, issue_id):
     issue, draft, by_id = load_issue(store, issue_id)
     directory = store.root / "runs" / issue_id
     text, _ = render(issue, draft, by_id)
-    _, markup = render(issue, draft, by_id, evidence_quotes=True)
+    misses = ()
+    if issue.get("kind") != NO_RELEASE:
+        packet = evidence_packet(store, issue["editorial_run_id"])
+        misses = _near_misses(packet, {e["document_id"] for e in by_id.values()})
+    _, markup = render(issue, draft, by_id, evidence_quotes=True, near_misses=misses)
     write_preview(directory / "newsletter.txt", text)
     write_preview(directory / "newsletter.html", markup)
     content = draft if issue.get("kind") == NO_RELEASE else draft.model_dump()
@@ -479,16 +662,23 @@ def main(argv=None):
     parser.add_argument("--source-store", type=Path, required=True)
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("create").add_argument("run_id")
-    for name in ("preview", "status", "approve", "revise", "email"):
+    for name in ("preview", "status", "approve", "revise", "promote", "email"):
         command = commands.add_parser(name)
         command.add_argument("issue_id")
-        if name in {"approve", "revise"}:
+        if name in {"approve", "revise", "promote"}:
             command.add_argument("--expected-version", required=True)
         if name == "approve":
             command.add_argument("--reviewer", required=True)
             command.add_argument("--rationale", required=True)
         if name == "revise":
             command.add_argument("--content", required=True, type=Path)
+        if name == "promote":
+            command.add_argument("--document-id", required=True)
+            command.add_argument(
+                "--facts",
+                type=lambda v: [int(i) for i in v.split(",")],
+                help="Comma-separated fact numbers from the preview (default: all)",
+            )
         if name == "email":
             command.add_argument("--send", action="store_true", help="Actually send via Gmail SMTP")
     args = parser.parse_args(argv)
@@ -527,6 +717,16 @@ def main(argv=None):
                 expected_version=args.expected_version,
             )
             result = {"issue_id": issue["run_id"], "version": issue["issue_sha256"]}
+        elif args.command == "promote":
+            issue = promote(
+                store,
+                args.issue_id,
+                args.document_id,
+                expected_version=args.expected_version,
+                fact_indexes=args.facts,
+            )
+            result = {"issue_id": issue["run_id"], "version": issue["issue_sha256"]}
+            result["preview"] = str(store.root / "runs" / issue["run_id"] / "newsletter.html")
         else:
             sender = os.environ.get("HEALTHLAB_GMAIL_USER", "")
             recipients = [
