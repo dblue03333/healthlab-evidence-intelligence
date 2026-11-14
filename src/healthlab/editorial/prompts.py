@@ -15,6 +15,8 @@ from healthlab.editorial.contracts import (
 from healthlab.editorial_dates import DATE_POLICY_VERSIONS
 from healthlab.editorial_passages import POLICY as PASSAGE_POLICY
 from healthlab.editorial_review_policy import (
+    PUBLICATION_WINDOW_VERSIONS,
+    RELATIVE_TIME_WORDS,
     CitationReview,
     ContextReview,
     SemanticReview,
@@ -260,6 +262,8 @@ A repost whose footer names a known publisher host is not by itself an origin_un
 blocker; the issue cites both publishers. A date with basis inferred_from_publication_year is
 code-resolved from the publication year and must still belong to this fact's event.
 """
+    if version in PUBLICATION_WINDOW_VERSIONS and role == "draft":
+        instruction += PUBLICATION_WINDOW_DRAFT
     content = {"reporting_window": window}
     if article is not None:
         content["article"] = {
@@ -302,6 +306,19 @@ code-resolved from the publication year and must still belong to this fact's eve
         {"role": "user", "content": json.dumps(content, ensure_ascii=False)},
     ], schema
 
+
+PUBLICATION_WINDOW_DRAFT = """
+This issue reports what trusted sources PUBLISHED in the reporting period. Code set each
+evidence item's time_basis; follow it for every sentence that uses that item:
+- event_date_in_window: state the absolute event_date.
+- event_date_before_window: state the absolute event_date; never present it as happening in
+  the period.
+- event_date_after_window: state it as scheduled for that absolute date, not as done.
+- publication_date: the source gives no event date. Attribute the fact to the article, e.g.
+  "Theo bài đăng ngày 05/11/2026 trên <title>", and never write that it happened in the period.
+Never use these relative time words: {words}. Code rejects them before approval.
+A source figure stated "đến nay" is reported as of the article's publication date.
+""".format(words=", ".join(f'"{w}"' for w in RELATIVE_TIME_WORDS))
 
 V15_CONTEXT = """Each fact MUST have context with actor, document, population and status keys.
 Default each facet to null. Fill a facet ONLY when one short literal phrase in that fact's own

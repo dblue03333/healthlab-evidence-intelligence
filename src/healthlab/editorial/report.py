@@ -28,7 +28,8 @@ DATE_LABELS = {
 
 def date_review_details(row, article, window, version):
     reasons = article["review_gate"]["reasons"]
-    if "supported_in_window_development_missing" not in reasons or "relevant" not in {
+    date_reasons = {"supported_in_window_development_missing", "current_development_missing"}
+    if not date_reasons & set(reasons) or "relevant" not in {
         article["proposal"]["relevance"],
         (article["review"] or {}).get("relevance"),
     }:

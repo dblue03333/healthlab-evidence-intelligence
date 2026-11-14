@@ -6,7 +6,12 @@ from datetime import date
 from healthlab.signal.triage_v5 import literal_dates
 
 DATE_POLICY = "editorial-dates-2"
-DATE_POLICY_VERSIONS = {"gold-editorial-16", "gold-editorial-17", "gold-editorial-18"}
+DATE_POLICY_VERSIONS = {
+    "gold-editorial-16",
+    "gold-editorial-17",
+    "gold-editorial-18",
+    "gold-editorial-19",
+}
 YEAR_INFERENCE_MAX_DAYS = 30
 INFERRED_YEAR_BASIS = "inferred_from_publication_year"
 _DAY_FIRST_HYPHEN = re.compile(r"(?<![\w/.-])(\d{1,2})-(\d{1,2})-(20\d{2})(?![\w/-]|\.\d)")

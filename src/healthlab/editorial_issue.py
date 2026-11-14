@@ -43,6 +43,7 @@ from healthlab.data.pilot import runner_lock
 from healthlab.editorial.contracts import EditorialDraft
 from healthlab.editorial.packet import evidence_packet, requires_scope_assessment
 from healthlab.editorial.runs import jobs, load
+from healthlab.editorial_review_policy import relative_time_words
 from healthlab.models import Contract, IngestionError
 from healthlab.pubmed import utc_now
 from healthlab.signal.newsletter import deliver, mailbox
@@ -70,6 +71,18 @@ REASONS = {
     "article_level_finding": "Reviewer nêu lỗi ở cấp cả bài (chủ đề hoặc nguồn gốc bài)",
     "topic_passage_missing": "Reviewer không chỉ ra đoạn nào chứng minh bài đúng chủ đề",
     "topic_not_relevant": "AI phân loại cho rằng bài không thuộc chủ đề già hoá/tuổi thọ",
+    "current_development_missing": (
+        "Mọi dữ kiện đều có ngày trước kỳ, hoặc bài không được đăng trong kỳ"
+    ),
+}
+# How the writer must date a fact under publication-window-1; shown to the approver.
+TIME_BASIS = {
+    "event_date_in_window": "ngày sự kiện {event_date}, trong kỳ",
+    "event_date_before_window": "ngày sự kiện {event_date}, trước kỳ — không viết như tin trong kỳ",
+    "event_date_after_window": "dự kiến ngày {event_date}, sau kỳ — không viết như đã làm",
+    "publication_date": (
+        "nguồn không ghi ngày sự kiện — viết theo bài đăng ngày {publication_date}"
+    ),
 }
 # Reviewer flags on released facts (fact-flags-1); shown only in the approval preview.
 FLAGS = {
@@ -108,6 +121,28 @@ class IssueDraft(EditorialDraft):
 def _claims(draft):
     yield from (claim for section in draft.sections for claim in section.facts)
     yield from getattr(draft, "side_news", ())
+
+
+def time_word_findings(draft):
+    """Relative time words in a draft whose evidence is dated by publication-window-1.
+
+    Older drafts were written without a time basis per fact and are not checked.
+    """
+    found = []
+    texts = [("Tiêu đề", draft.title)]
+    for section in draft.sections:
+        texts.append((f"Mục «{section.title}»", section.title))
+        texts += [(f"Mục «{section.title}»", c.text) for c in section.facts]
+        texts.append((f"Mục «{section.title}» — Ý nghĩa", section.interpretation))
+        texts.append((f"Mục «{section.title}» — Giới hạn", section.uncertainty))
+    texts += [(SIDE_NEWS_TITLE, item.text) for item in getattr(draft, "side_news", ())]
+    for where, text in texts:
+        found += [(where, word) for word in relative_time_words(text)]
+    return found
+
+
+def _time_dated(by_id):
+    return any(e.get("time_basis") for e in by_id.values())
 
 
 def _check(draft, evidence, records):
@@ -351,9 +386,16 @@ def approve(store, issue_id, *, expected_version, reviewer, rationale):
     if not reviewer.strip() or not rationale.strip():
         raise ValueError("Reviewer and rationale are required")
     with runner_lock(store.root):
-        issue, _, _ = load_issue(store, issue_id)
+        issue, draft, by_id = load_issue(store, issue_id)
         if expected_version != issue["issue_sha256"]:
             raise ValueError("Stale issue version; reload before approving")
+        if issue.get("kind") != NO_RELEASE and _time_dated(by_id):
+            found = time_word_findings(draft)
+            if found:
+                listed = "; ".join(f"{where}: «{word}»" for where, word in found)
+                raise ValueError(
+                    f"Draft uses relative time words ({listed}); fix them with revise first"
+                )
         if issue["dataset_status"] != "ready" or any(
             s["required"] and s["status"] != "completed" for s in issue["sources"]
         ):
@@ -396,11 +438,20 @@ def _quotes(e, label):
     date_quote = (e.get("date_evidence") or {}).get("quote")
     if date_quote and date_quote not in {q for _, q in quotes}:
         quotes.append((f"{label} (ngày)", date_quote))
-    return [
+    parts = [
         '<blockquote style="color:#555;border-left:3px solid #ccc;'
         f'margin:4px 0 8px;padding-left:10px">{html.escape(k)}: {html.escape(q)}</blockquote>'
         for k, q in quotes
     ]
+    basis = TIME_BASIS.get(e.get("time_basis"))
+    if basis:
+        parts.append(
+            '<p style="color:#555;font-size:14px;margin:0 0 6px 13px">'
+            f"🕒 Mốc thời gian ({html.escape(label)}): "
+            f"{html.escape(basis.format(event_date=e.get('event_date'), publication_date=e.get('publication_date')))}"
+            "</p>"
+        )
+    return parts
 
 
 def _draft_body(draft, by_id, evidence_quotes):
@@ -521,7 +572,28 @@ def _near_miss_body(issue, misses):
     return parts
 
 
-def render(issue, content, by_id, *, approved=None, evidence_quotes=False, near_misses=()):
+def _time_word_body(found):
+    """Preview-only warning; approval is refused until a revision removes these words."""
+    esc = html.escape
+    items = "".join(f"<li>{esc(where)}: «{esc(word)}»</li>" for where, word in found)
+    return [
+        '<div style="border:2px solid #b00020;padding:8px 14px;margin:16px 0">'
+        '<p style="color:#b00020;margin:4px 0"><b>Chưa duyệt được: bản nháp dùng từ chỉ '
+        "thời gian tương đối.</b> Hãy sửa bằng lệnh <code>revise</code>, ghi ngày tuyệt đối "
+        f"hoặc «theo bài đăng ngày …».</p><ul>{items}</ul></div>"
+    ]
+
+
+def render(
+    issue,
+    content,
+    by_id,
+    *,
+    approved=None,
+    evidence_quotes=False,
+    near_misses=(),
+    time_words=(),
+):
     esc = html.escape
     period = issue["question"]
     label = "Đã duyệt nội bộ" if approved else "BẢN NHÁP AI — CHƯA ĐƯỢC DUYỆT"
@@ -543,6 +615,8 @@ def render(issue, content, by_id, *, approved=None, evidence_quotes=False, near_
         f" — {esc(period['maxdate'])}</p>",
         f'<h1 style="font-size:24px">{esc(heading)}</h1>',
     ]
+    if time_words:
+        parts += _time_word_body(time_words)
     body_lines, body_parts, footer = (
         _no_release_body(content)
         if issue.get("kind") == NO_RELEASE
@@ -579,11 +653,15 @@ def render_preview(store, issue_id):
     issue, draft, by_id = load_issue(store, issue_id)
     directory = store.root / "runs" / issue_id
     text, _ = render(issue, draft, by_id)
-    misses = ()
+    misses, found = (), ()
     if issue.get("kind") != NO_RELEASE:
         packet = evidence_packet(store, issue["editorial_run_id"])
         misses = _near_misses(packet, {e["document_id"] for e in by_id.values()})
-    _, markup = render(issue, draft, by_id, evidence_quotes=True, near_misses=misses)
+        if _time_dated(by_id):
+            found = time_word_findings(draft)
+    _, markup = render(
+        issue, draft, by_id, evidence_quotes=True, near_misses=misses, time_words=found
+    )
     write_preview(directory / "newsletter.txt", text)
     write_preview(directory / "newsletter.html", markup)
     content = draft if issue.get("kind") == NO_RELEASE else draft.model_dump()

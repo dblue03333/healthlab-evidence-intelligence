@@ -17,15 +17,17 @@ from healthlab.editorial_review_policy import (
     ai_review_required,
     topic_gate,
 )
-from tests.conftest import REVIEW_RUNTIME
+from tests.conftest import REVIEW_RUNTIME, TOPIC_ONLY_RUNTIME
 from tests.test_editorial import WINDOW, proposal, row, scope_assessment, setup_run
 from tests.test_editorial_adopt_reviewed import REVIEW
 from tests.test_editorial_recovery import child_run, live_output
 
+pytestmark = pytest.mark.usefixtures("topic_only_runtime")
+
 DRAFT = "# Thí điểm phục hồi chức năng\n\nNguồn báo cáo chương trình bắt đầu ngày 10/10/2026."
 
 
-def canonical(version=ed.VERSION, **updates):
+def canonical(version=TOPIC_ONLY_RUNTIME, **updates):
     article = row()
     value = dict(live_output(), **updates)
     return ed.canonical_proposal(
@@ -36,11 +38,11 @@ def canonical(version=ed.VERSION, **updates):
     )
 
 
-def test_only_gold_editorial_18_drops_the_ai_review_step():
-    assert ed.VERSION == "gold-editorial-18" and REVIEW_RUNTIME in ed.READ_VERSIONS
+def test_gold_editorial_18_drops_the_ai_review_step():
+    assert {REVIEW_RUNTIME, TOPIC_ONLY_RUNTIME} <= ed.READ_VERSIONS
     assert canonical()["release_policy"] == TOPIC_ONLY_POLICY
     assert canonical(REVIEW_RUNTIME)["release_policy"] == RELEASE_POLICY
-    assert not ai_review_required(ed.VERSION) and ai_review_required(REVIEW_RUNTIME)
+    assert not ai_review_required(TOPIC_ONLY_RUNTIME) and ai_review_required(REVIEW_RUNTIME)
 
 
 def test_topic_gate_releases_every_fact_without_flags():
@@ -105,7 +107,7 @@ def test_v18_adopts_only_scope_from_a_reviewed_v17_parent(tmp_path, monkeypatch)
     ed.run_calls(store, parent["run_id"], provider, role="review", workers=1)
     ed.plan_scope(store, parent["run_id"])
     ed.run_calls(store, parent["run_id"], provider, role="scope", workers=1)
-    monkeypatch.setattr(runs, "VERSION", ed.VERSION)
+    monkeypatch.setattr(runs, "VERSION", TOPIC_ONLY_RUNTIME)
 
     child = child_run(tmp_path, store, provider, call_budget=10)
     ed.adopt_previous(store, child["run_id"], parent["run_id"])

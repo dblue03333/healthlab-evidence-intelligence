@@ -4,6 +4,8 @@ Audit notes never release or block a record. Legacy untyped issues are not guess
 A clean review is an AI proposal, not a human approval or a factual guarantee.
 """
 
+import re
+import unicodedata
 from typing import Literal
 
 from pydantic import Field, StrictInt, model_validator
@@ -37,11 +39,87 @@ ARTICLE_FINDING_CODES = {"topic_not_supported", "origin_unverified"}
 # decide relevance; code still checks literal quotes and in-window dates, and the human
 # approver reads the source and draft before anything is sent.
 TOPIC_ONLY_POLICY = "topic-only-1"
-TOPIC_ONLY_VERSIONS = {"gold-editorial-18"}
+# publication-window-1 (gold-editorial-19): the newsletter reports what trusted sources
+# published in the period. Like topic-only-1 there is no AI review, but an article no longer
+# needs a literal in-window event date: an undated fact in an article published in the period
+# is current news, attributed to that publication date. Each fact carries a code-derived
+# time basis that the writer must follow; only an article whose every fact is dated before
+# the period is held back.
+PUBLICATION_WINDOW_POLICY = "publication-window-1"
+PUBLICATION_WINDOW_VERSIONS = {"gold-editorial-19"}
+TOPIC_ONLY_VERSIONS = {"gold-editorial-18", *PUBLICATION_WINDOW_VERSIONS}
+NO_REVIEW_POLICIES = {TOPIC_ONLY_POLICY, PUBLICATION_WINDOW_POLICY}
+# Time basis of one fact under publication-window-1, derived by code, never by a model.
+TIME_BASES = (
+    "event_date_in_window",
+    "event_date_after_window",
+    "event_date_before_window",
+    "publication_date",
+)
+
+
+# Relative time words a publication-window-1 draft must not use: an undated fact is dated
+# by its article's publication, so "now"/"recently" would misdate it.
+RELATIVE_TIME_WORDS = (
+    "tuần này",
+    "tuần qua",
+    "tuần trước",
+    "vừa qua",
+    "mới đây",
+    "gần đây",
+    "hiện nay",
+    "hiện tại",
+    "đến nay",
+    "thời gian qua",
+    "hôm nay",
+    "hôm qua",
+)
+_RELATIVE_TIME = re.compile(
+    r"(?<!\w)(" + "|".join(re.escape(w) for w in RELATIVE_TIME_WORDS) + r")(?!\w)",
+    re.IGNORECASE,
+)
+
+
+def relative_time_words(text):
+    """Relative time words in one piece of draft text, in order of appearance."""
+    return [m.group(0) for m in _RELATIVE_TIME.finditer(unicodedata.normalize("NFC", text))]
 
 
 def ai_review_required(version):
     return version not in TOPIC_ONLY_VERSIONS
+
+
+def published_in_window(publication_date, window):
+    return bool(publication_date) and window["mindate"] <= publication_date <= window["maxdate"]
+
+
+def fact_time_basis(event_date, literal_date_supported, publication_date, window):
+    """How the writer must date one fact, or None when the fact cannot count as current.
+
+    A literal event date wins. An undated fact falls back to the article's publication date,
+    which is only an attribution ("theo bài đăng ngày ..."), never the event's date. A date
+    the quote does not support is a technical hold and never gets a basis.
+    """
+    if event_date:
+        if not literal_date_supported:
+            return None
+        if event_date < window["mindate"]:
+            return "event_date_before_window"
+        if event_date > window["maxdate"]:
+            return "event_date_after_window"
+        return "event_date_in_window"
+    return "publication_date" if published_in_window(publication_date, window) else None
+
+
+def current_basis(basis, publication_date, window):
+    """True when a fact with this basis can be reported as news of the period."""
+    if basis == "event_date_in_window":
+        return True
+    # A scheduled date after the period, or no event date, counts only in an article that
+    # was itself published in the period.
+    return basis in {"event_date_after_window", "publication_date"} and published_in_window(
+        publication_date, window
+    )
 
 
 def fact_date_supported(fact, *, policy=None, publication_date=None):
@@ -402,14 +480,17 @@ def validate_review(payload, proposal, passage_ids, window=None):
 
 
 def topic_gate(proposal, window):
-    """Release gate under topic-only-1; the scope gate is combined by the caller."""
+    """Release gate under topic-only-1 and publication-window-1; the scope gate is combined
+    by the caller."""
+    by_publication = proposal.get("release_policy") == PUBLICATION_WINDOW_POLICY
     reasons = []
     if not proposal["newsletter_candidate"]:
         reasons.append("primary_not_newsletter_candidate")
     if proposal["relevance"] != "relevant":
         reasons.append("topic_not_relevant")
-    facts = [
-        {
+    facts = []
+    for check in fact_date_checks(proposal, window) if window else []:
+        fact = {
             "fact_index": check["fact_index"],
             "released": True,
             "drop_reasons": [],
@@ -418,14 +499,29 @@ def topic_gate(proposal, window):
                 check["literal_date_supported"] and check["inside_inclusive_window"] is True
             ),
         }
-        for check in (fact_date_checks(proposal, window) if window else [])
-    ]
-    if not any(f["in_window_date"] for f in facts):
+        if by_publication:
+            fact["time_basis"] = fact_time_basis(
+                check["event_date"],
+                check["literal_date_supported"],
+                proposal.get("publication_date"),
+                window,
+            )
+            fact["current"] = current_basis(
+                fact["time_basis"], proposal.get("publication_date"), window
+            )
+            if fact["time_basis"] is None:
+                # The writer could not date it honestly, so it never reaches the packet.
+                fact.update(released=False, drop_reasons=["time_basis_missing"])
+        facts.append(fact)
+    if by_publication:
+        if not any(f["current"] for f in facts):
+            reasons.append("current_development_missing")
+    elif not any(f["in_window_date"] for f in facts):
         reasons.append("supported_in_window_development_missing")
     return {
         "eligible": not reasons,
         "reasons": reasons,
-        "release_policy": TOPIC_ONLY_POLICY,
+        "release_policy": PUBLICATION_WINDOW_POLICY if by_publication else TOPIC_ONLY_POLICY,
         "facts": facts,
     }
 

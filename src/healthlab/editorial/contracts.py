@@ -20,16 +20,20 @@ from healthlab.editorial_origin import footer_attributions
 from healthlab.editorial_passages import POLICY as PASSAGE_POLICY
 from healthlab.editorial_passages import editorial_passages
 from healthlab.editorial_review_policy import (
+    PUBLICATION_WINDOW_POLICY,
+    PUBLICATION_WINDOW_VERSIONS,
     RELEASE_POLICY,
     RELEASE_POLICY_VERSIONS,
     TOPIC_ONLY_POLICY,
     TOPIC_ONLY_VERSIONS,
+    current_basis,
     fact_date_supported,
+    fact_time_basis,
 )
 from healthlab.models import Contract
 from healthlab.signal.triage import source_passages
 
-VERSION = "gold-editorial-18"
+VERSION = "gold-editorial-19"
 # Finished known schemas stay readable; inference and mutations require the exact
 # current runtime. Legacy review findings never silently acquire new semantics.
 READ_VERSIONS = {
@@ -50,6 +54,7 @@ READ_VERSIONS = {
     "gold-editorial-15",
     "gold-editorial-16",
     "gold-editorial-17",
+    "gold-editorial-18",
     VERSION,
 }
 # Context contract per version: v14 rejects invalid bindings; later versions repair or drop them.
@@ -59,6 +64,7 @@ CONTEXT_CONTRACTS = {
     "gold-editorial-16": "fact-context-2",
     "gold-editorial-17": "fact-context-2",
     "gold-editorial-18": "fact-context-2",
+    "gold-editorial-19": "fact-context-2",
 }
 MAX_BODY_CHARS = 20_000
 
@@ -487,6 +493,24 @@ def canonical_proposal(value, article, window, *, version=VERSION):
         and window["mindate"] <= f.event_date <= window["maxdate"]
         for f in p.facts
     )
+    if version in PUBLICATION_WINDOW_VERSIONS:
+        # publication-window-1: an undated fact in an article published in the period, or a
+        # scheduled date after it, is current too; a fact dated before the period is not.
+        in_window = any(
+            current_basis(
+                fact_time_basis(
+                    f.event_date,
+                    fact_date_supported(
+                        f.model_dump(), policy=date_policy, publication_date=publication_date
+                    ),
+                    publication_date,
+                    window,
+                ),
+                publication_date,
+                window,
+            )
+            for f in p.facts
+        )
     # A footer attribution forces origin review regardless of model confidence.
     # Under the current date policy a footer naming only trusted publishers is accepted as a
     # repost from a known outlet; any other footer still forces origin review.
@@ -518,6 +542,8 @@ def canonical_proposal(value, article, window, *, version=VERSION):
         result["trusted_origin_hosts"] = trusted_hosts if trusted_repost else []
     if version in RELEASE_POLICY_VERSIONS:
         result["release_policy"] = RELEASE_POLICY
+    elif version in PUBLICATION_WINDOW_VERSIONS:
+        result["release_policy"] = PUBLICATION_WINDOW_POLICY
     elif version in TOPIC_ONLY_VERSIONS:
         result["release_policy"] = TOPIC_ONLY_POLICY
     return result
