@@ -21,58 +21,52 @@ BODY = QUOTE + " Hỗ trợ nhóm trên 65 tuổi tự sinh hoạt tại nhà."
 
 
 def row(body=BODY):
-    return dict(
-        document_id="id",
-        source_id="source",
-        url="https://example.org/a",
-        title="Phục hồi chức năng tại cộng đồng",
-        body=body,
-        publication_date="2026-10-11",
-        selection_date="2026-10-11",
-        selection_date_basis="publication",
-        snapshot_id="a" * 64,
-        raw_sha256="b" * 64,
-    )
+    return {
+        "document_id": "id",
+        "source_id": "source",
+        "url": "https://example.org/a",
+        "title": "Phục hồi chức năng tại cộng đồng",
+        "body": body,
+        "publication_date": "2026-10-11",
+        "selection_date": "2026-10-11",
+        "selection_date_basis": "publication",
+        "snapshot_id": "a" * 64,
+        "raw_sha256": "b" * 64,
+    }
 
 
 def proposal(**updates):
-    return (
-        dict(
-            relevance="relevant",
-            topics=["longevity"],
-            jurisdiction="vietnam",
-            content_kind="new_development",
-            source_role="original",
-            summary="Nguồn mô tả một mô hình thí điểm.",
-            rationale="Hỗ trợ chức năng cho nhóm trên 65 tuổi.",
-            relevance_quote=BODY,
-            facts=[
-                dict(
-                    statement="Nguồn báo cáo chương trình thí điểm bắt đầu ngày 10/10/2026.",
-                    quote=QUOTE,
-                    event_date="2026-10-10",
-                    reported_status="pilot",
-                )
-            ],
-            uncertainties=["Chưa có đánh giá hiệu quả."],
-        )
-        | updates
-    )
+    return {
+        "relevance": "relevant",
+        "topics": ["longevity"],
+        "jurisdiction": "vietnam",
+        "content_kind": "new_development",
+        "source_role": "original",
+        "summary": "Nguồn mô tả một mô hình thí điểm.",
+        "rationale": "Hỗ trợ chức năng cho nhóm trên 65 tuổi.",
+        "relevance_quote": BODY,
+        "facts": [
+            {
+                "statement": "Nguồn báo cáo chương trình thí điểm bắt đầu ngày 10/10/2026.",
+                "quote": QUOTE,
+                "event_date": "2026-10-10",
+                "reported_status": "pilot",
+            }
+        ],
+        "uncertainties": ["Chưa có đánh giá hiệu quả."],
+    } | updates
 
 
 def scope_assessment(**updates):
-    return (
-        dict(
-            scope_version="healthy-ageing-scope-1",
-            verdict="substantive",
-            passage_ids=["P2"],
-            ageing_context="Hỗ trợ nhóm trên65 tuổi tự sinh hoạt.",
-            substantive_detail="Phục hồi chức năng gắn khả năng sinh hoạt.",
-            requires_outside_knowledge=False,
-            rationale="Liên hệ chức năng có trong nguồn.",
-        )
-        | updates
-    )
+    return {
+        "scope_version": "healthy-ageing-scope-1",
+        "verdict": "substantive",
+        "passage_ids": ["P2"],
+        "ageing_context": "Hỗ trợ nhóm trên65 tuổi tự sinh hoạt.",
+        "substantive_detail": "Phục hồi chức năng gắn khả năng sinh hoạt.",
+        "requires_outside_knowledge": False,
+        "rationale": "Liên hệ chức năng có trong nguồn.",
+    } | updates
 
 
 def setup_run(tmp_path, monkeypatch, responses):
@@ -101,22 +95,22 @@ def setup_run(tmp_path, monkeypatch, responses):
         link = None
         if date_id is not None:
             link = (
-                dict(kind="same_passage", candidate_id=date_id)
+                {"kind": "same_passage", "candidate_id": date_id}
                 if same
-                else dict(
-                    kind="cross_passage",
-                    candidate_id=date_id,
-                    rationale=f.get("date_link_rationale"),
-                )
+                else {
+                    "kind": "cross_passage",
+                    "candidate_id": date_id,
+                    "rationale": f.get("date_link_rationale"),
+                }
             )
-        return dict(
-            statement=f["statement"],
-            passage_id=f["passage_id"],
-            supporting_passage_ids=f.get("supporting_passage_ids", []),
-            context=dict(actor=None, document=None, population=None, status=None),
-            date_link=link,
-            reported_status=f["reported_status"],
-        )
+        return {
+            "statement": f["statement"],
+            "passage_id": f["passage_id"],
+            "supporting_passage_ids": f.get("supporting_passage_ids", []),
+            "context": {"actor": None, "document": None, "population": None, "status": None},
+            "date_link": link,
+            "reported_status": f["reported_status"],
+        }
 
     def to_ids(p):
         if isinstance(p, dict) and "review_version" in p:
@@ -131,14 +125,14 @@ def setup_run(tmp_path, monkeypatch, responses):
                 context_assessments=p.get(
                     "context_assessments",
                     [
-                        dict(
-                            fact_index=i,
-                            actor="not_applicable",
-                            document="not_applicable",
-                            population="not_applicable",
-                            status="not_applicable",
-                            explanation="Fixture without context bindings.",
-                        )
+                        {
+                            "fact_index": i,
+                            "actor": "not_applicable",
+                            "document": "not_applicable",
+                            "population": "not_applicable",
+                            "status": "not_applicable",
+                            "explanation": "Fixture without context bindings.",
+                        }
                         for i in range(count)
                     ],
                 ),
@@ -153,12 +147,12 @@ def setup_run(tmp_path, monkeypatch, responses):
         result["relevance_passage_id"] = "P2"
         result["facts"] = [
             v14_fact(
-                dict(
-                    statement=f["statement"],
-                    passage_id="P1",
-                    event_date_candidate_id="D1" if f["event_date"] else None,
-                    reported_status=f["reported_status"],
-                )
+                {
+                    "statement": f["statement"],
+                    "passage_id": "P1",
+                    "event_date_candidate_id": "D1" if f["event_date"] else None,
+                    "reported_status": f["reported_status"],
+                }
             )
             for f in p["facts"]
         ]
@@ -226,23 +220,23 @@ def test_failure_is_not_an_exclusion_or_automatic_retry(tmp_path, monkeypatch):
 
 
 def test_review_disagreement_blocks_drafting_and_does_not_erase_knowledge(tmp_path, monkeypatch):
-    review = dict(
-        relevance="uncertain",
-        newsletter_eligible=False,
-        supported_fact_indexes=[],
-        review_version="editorial-review-2",
-        topic_passage_ids=[],
-        blocking_findings=[
-            dict(
-                code="topic_not_supported",
-                explanation="Phạm vi chưa rõ",
-                fact_indexes=[],
-                passage_ids=["P2"],
-            )
+    review = {
+        "relevance": "uncertain",
+        "newsletter_eligible": False,
+        "supported_fact_indexes": [],
+        "review_version": "editorial-review-2",
+        "topic_passage_ids": [],
+        "blocking_findings": [
+            {
+                "code": "topic_not_supported",
+                "explanation": "Phạm vi chưa rõ",
+                "fact_indexes": [],
+                "passage_ids": ["P2"],
+            }
         ],
-        audit_notes=[],
-        rationale="Cần kiểm tra.",
-    )
+        "audit_notes": [],
+        "rationale": "Cần kiểm tra.",
+    }
     store, run, provider = setup_run(tmp_path, monkeypatch, [proposal(), review])
     ed.run_calls(store, run["run_id"], provider, workers=1)
     ed.plan_review(store, run["run_id"])
@@ -255,32 +249,32 @@ def test_review_disagreement_blocks_drafting_and_does_not_erase_knowledge(tmp_pa
 
 
 def test_reviewed_fact_can_feed_unapproved_cited_draft(tmp_path, monkeypatch):
-    review = dict(
-        relevance="relevant",
-        newsletter_eligible=True,
-        supported_fact_indexes=[0],
-        review_version="editorial-review-2",
-        topic_passage_ids=["P2"],
-        blocking_findings=[],
-        audit_notes=["Fact được nguồn hỗ trợ; ghi chú này không phải lỗi."],
-        rationale="Đoạn trích hỗ trợ đúng mốc và trạng thái thí điểm.",
-    )
-    draft = dict(
-        title="Thử nghiệm hỗ trợ phục hồi chức năng",
-        sections=[
-            dict(
-                title="Một chương trình thí điểm",
-                facts=[
-                    dict(
-                        text="Nguồn báo cáo chương trình thí điểm bắt đầu ngày 10/10/2026.",
-                        evidence_ids=["E1"],
-                    )
+    review = {
+        "relevance": "relevant",
+        "newsletter_eligible": True,
+        "supported_fact_indexes": [0],
+        "review_version": "editorial-review-2",
+        "topic_passage_ids": ["P2"],
+        "blocking_findings": [],
+        "audit_notes": ["Fact được nguồn hỗ trợ; ghi chú này không phải lỗi."],
+        "rationale": "Đoạn trích hỗ trợ đúng mốc và trạng thái thí điểm.",
+    }
+    draft = {
+        "title": "Thử nghiệm hỗ trợ phục hồi chức năng",
+        "sections": [
+            {
+                "title": "Một chương trình thí điểm",
+                "facts": [
+                    {
+                        "text": "Nguồn báo cáo chương trình thí điểm bắt đầu ngày 10/10/2026.",
+                        "evidence_ids": ["E1"],
+                    }
                 ],
-                interpretation="Có thể theo dõi thêm.",
-                uncertainty="Chưa có dữ liệu hiệu quả.",
-            )
+                "interpretation": "Có thể theo dõi thêm.",
+                "uncertainty": "Chưa có dữ liệu hiệu quả.",
+            }
         ],
-    )
+    }
     store, run, provider = setup_run(
         tmp_path, monkeypatch, [proposal(), review, scope_assessment(), draft]
     )
@@ -343,27 +337,27 @@ def test_real_gold_readiness_is_required(tmp_path):
 
 
 def test_id_resolution_rejects_missing_passages_and_cross_passage_dates():
-    payload = dict(
-        relevance="relevant",
-        topics=["longevity"],
-        jurisdiction="vietnam",
-        content_kind="new_development",
-        source_role="original",
-        summary="Summary",
-        rationale="Rationale",
-        relevance_passage_id="P2",
-        facts=[
-            dict(
-                statement="Statement",
-                passage_id="P1",
-                event_date_candidate_id="D1",
-                date_context_passage_id=None,
-                date_link_rationale=None,
-                reported_status="pilot",
-            )
+    payload = {
+        "relevance": "relevant",
+        "topics": ["longevity"],
+        "jurisdiction": "vietnam",
+        "content_kind": "new_development",
+        "source_role": "original",
+        "summary": "Summary",
+        "rationale": "Rationale",
+        "relevance_passage_id": "P2",
+        "facts": [
+            {
+                "statement": "Statement",
+                "passage_id": "P1",
+                "event_date_candidate_id": "D1",
+                "date_context_passage_id": None,
+                "date_link_rationale": None,
+                "reported_status": "pilot",
+            }
         ],
-        uncertainties=[],
-    )
+        "uncertainties": [],
+    }
     resolved = ed.resolve_ids(payload, row())
     assert resolved["facts"][0]["quote"] == QUOTE
     assert resolved["facts"][0]["event_date"] == "2026-10-10"
@@ -380,27 +374,27 @@ def linked_proposal():
         "Ngày 10/10/2026, Bộ tổ chức cuộc họp tại Việt Nam. "
         "Tại cuộc họp, lãnh đạo yêu cầu đào tạo chuyên biệt chăm sóc người cao tuổi."
     )
-    payload = dict(
-        relevance="relevant",
-        topics=["aging_society"],
-        jurisdiction="vietnam",
-        content_kind="new_development",
-        source_role="original",
-        summary="Phát biểu định hướng, chưa phải triển khai.",
-        rationale="Đào tạo chăm sóc người cao tuổi.",
-        relevance_passage_id="P2",
-        facts=[
-            dict(
-                statement="Tại cuộc họp, lãnh đạo yêu cầu đào tạo chăm sóc người cao tuổi.",
-                passage_id="P2",
-                event_date_candidate_id="D1",
-                date_context_passage_id="P1",
-                date_link_rationale="P2 nêu tại cuộc họp vừa được định ngày ở P1.",
-                reported_status="announced",
-            )
+    payload = {
+        "relevance": "relevant",
+        "topics": ["aging_society"],
+        "jurisdiction": "vietnam",
+        "content_kind": "new_development",
+        "source_role": "original",
+        "summary": "Phát biểu định hướng, chưa phải triển khai.",
+        "rationale": "Đào tạo chăm sóc người cao tuổi.",
+        "relevance_passage_id": "P2",
+        "facts": [
+            {
+                "statement": "Tại cuộc họp, lãnh đạo yêu cầu đào tạo chăm sóc người cao tuổi.",
+                "passage_id": "P2",
+                "event_date_candidate_id": "D1",
+                "date_context_passage_id": "P1",
+                "date_link_rationale": "P2 nêu tại cuộc họp vừa được định ngày ở P1.",
+                "reported_status": "announced",
+            }
         ],
-        uncertainties=["Chưa chứng minh có triển khai."],
-    )
+        "uncertainties": ["Chưa chứng minh có triển khai."],
+    }
     return article, payload
 
 

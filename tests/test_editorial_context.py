@@ -26,57 +26,51 @@ TEXT = (
     "Dự thảo đề xuất sàng lọc sa sút trí tuệ. Danh mục còn gồm nguy cơ ngã và loãng xương."
 )
 IDS = ["P1", "P2", "P3"]
-NULL_CONTEXT = dict(actor=None, document=None, population=None, status=None)
+NULL_CONTEXT = {"actor": None, "document": None, "population": None, "status": None}
 V14 = "gold-editorial-14"
 
 
 def bind(passage_id, quote):
-    return dict(passage_id=passage_id, quote=quote)
+    return {"passage_id": passage_id, "quote": quote}
 
 
 def context(**updates):
-    return (
-        dict(
-            actor=bind("P1", "Bộ Y tế"),
-            document=bind("P1", "dự thảo sàng lọc"),
-            population=bind("P1", "người từ 60 tuổi"),
-            status=bind("P2", "đề xuất"),
-        )
-        | updates
-    )
+    return {
+        "actor": bind("P1", "Bộ Y tế"),
+        "document": bind("P1", "dự thảo sàng lọc"),
+        "population": bind("P1", "người từ 60 tuổi"),
+        "status": bind("P2", "đề xuất"),
+    } | updates
 
 
 def raw(**fact_updates):
-    fact = (
-        dict(
-            statement=(
-                "Dự thảo sàng lọc của Bộ Y tế, được họp ngày 10/10/2026, đề xuất sàng lọc "
-                "sa sút trí tuệ, nguy cơ ngã và loãng xương cho người từ 60 tuổi."
-            ),
-            passage_id="P2",
-            supporting_passage_ids=["P1", "P3"],
-            context=context(),
-            date_link=dict(
-                kind="cross_passage",
-                candidate_id="D1",
-                rationale="P1 nêu cuộc họp ngày 10/10/2026 về chính dự thảo được mô tả ở P2.",
-            ),
-            reported_status="proposed",
-        )
-        | fact_updates
-    )
-    return dict(
-        relevance="relevant",
-        topics=["aging_society"],
-        jurisdiction="vietnam",
-        content_kind="new_development",
-        source_role="original",
-        summary="Bộ Y tế họp về dự thảo sàng lọc cho người cao tuổi.",
-        rationale="Dự thảo sàng lọc dành cho người từ 60 tuổi.",
-        relevance_passage_id="P1",
-        facts=[fact],
-        uncertainties=["Dự thảo chưa được ban hành."],
-    )
+    fact = {
+        "statement": (
+            "Dự thảo sàng lọc của Bộ Y tế, được họp ngày 10/10/2026, đề xuất sàng lọc "
+            "sa sút trí tuệ, nguy cơ ngã và loãng xương cho người từ 60 tuổi."
+        ),
+        "passage_id": "P2",
+        "supporting_passage_ids": ["P1", "P3"],
+        "context": context(),
+        "date_link": {
+            "kind": "cross_passage",
+            "candidate_id": "D1",
+            "rationale": "P1 nêu cuộc họp ngày 10/10/2026 về chính dự thảo được mô tả ở P2.",
+        },
+        "reported_status": "proposed",
+    } | fact_updates
+    return {
+        "relevance": "relevant",
+        "topics": ["aging_society"],
+        "jurisdiction": "vietnam",
+        "content_kind": "new_development",
+        "source_role": "original",
+        "summary": "Bộ Y tế họp về dự thảo sàng lọc cho người cao tuổi.",
+        "rationale": "Dự thảo sàng lọc dành cho người từ 60 tuổi.",
+        "relevance_passage_id": "P1",
+        "facts": [fact],
+        "uncertainties": ["Dự thảo chưa được ban hành."],
+    }
 
 
 def canonical(value=None):
@@ -87,35 +81,29 @@ def canonical(value=None):
 
 
 def assessment(index=0, **updates):
-    return (
-        dict(
-            fact_index=index,
-            actor="supported",
-            document="supported",
-            population="supported",
-            status="supported",
-            explanation="Bộ Y tế, dự thảo, nhóm từ 60 tuổi và trạng thái đề xuất đều nằm trong đoạn đính kèm.",
-        )
-        | updates
-    )
+    return {
+        "fact_index": index,
+        "actor": "supported",
+        "document": "supported",
+        "population": "supported",
+        "status": "supported",
+        "explanation": "Bộ Y tế, dự thảo, nhóm từ 60 tuổi và trạng thái đề xuất đều nằm trong đoạn đính kèm.",
+    } | updates
 
 
 def review(**updates):
-    return (
-        dict(
-            review_version="editorial-review-6",
-            relevance="relevant",
-            topic_passage_ids=["P1"],
-            supported_fact_indexes=[0],
-            supported_date_fact_indexes=[0],
-            supported_citation_fact_indexes=[0],
-            blocking_findings=[],
-            audit_notes=[],
-            rationale="Đoạn đính kèm hỗ trợ dự thảo, nhóm đối tượng và ngày họp.",
-            context_assessments=[assessment()],
-        )
-        | updates
-    )
+    return {
+        "review_version": "editorial-review-6",
+        "relevance": "relevant",
+        "topic_passage_ids": ["P1"],
+        "supported_fact_indexes": [0],
+        "supported_date_fact_indexes": [0],
+        "supported_citation_fact_indexes": [0],
+        "blocking_findings": [],
+        "audit_notes": [],
+        "rationale": "Đoạn đính kèm hỗ trợ dự thảo, nhóm đối tượng và ngày họp.",
+        "context_assessments": [assessment()],
+    } | updates
 
 
 # AC02: literal, attached, unique context bindings.
@@ -192,13 +180,13 @@ def test_tampered_resolved_context_cannot_feed_a_packet(change):
 
 
 def test_same_passage_link_must_point_to_the_primary_passage():
-    value = raw(date_link=dict(kind="same_passage", candidate_id="D1"))
+    value = raw(date_link={"kind": "same_passage", "candidate_id": "D1"})
     with pytest.raises(ValueError, match="Date link kind"):
         canonical(value)
     primary = raw(
         passage_id="P1",
         supporting_passage_ids=["P2", "P3"],
-        date_link=dict(kind="same_passage", candidate_id="D1"),
+        date_link={"kind": "same_passage", "candidate_id": "D1"},
     )
     f = canonical(primary)["resolved_facts"][0]
     assert f["event_date"] == "2026-10-10" and f["date_evidence"] is None
@@ -208,13 +196,13 @@ def test_cross_passage_link_needs_another_passage_and_a_rationale():
     same = raw(
         passage_id="P1",
         supporting_passage_ids=["P2", "P3"],
-        date_link=dict(kind="cross_passage", candidate_id="D1", rationale="Cùng sự kiện."),
+        date_link={"kind": "cross_passage", "candidate_id": "D1", "rationale": "Cùng sự kiện."},
     )
     with pytest.raises(ValueError, match="Date link kind"):
         canonical(same)
     for link in (
-        dict(kind="cross_passage", candidate_id="D1"),
-        dict(kind="cross_passage", candidate_id="D1", rationale=""),
+        {"kind": "cross_passage", "candidate_id": "D1"},
+        {"kind": "cross_passage", "candidate_id": "D1", "rationale": ""},
     ):
         with pytest.raises(ValidationError):
             canonical(raw(date_link=link))
@@ -223,16 +211,16 @@ def test_cross_passage_link_needs_another_passage_and_a_rationale():
 def test_date_in_additional_support_is_still_cross_passage():
     # D1 sits in P1, which is attached as additional support for primary P2.
     with pytest.raises(ValueError, match="Date link kind"):
-        canonical(raw(date_link=dict(kind="same_passage", candidate_id="D1")))
+        canonical(raw(date_link={"kind": "same_passage", "candidate_id": "D1"}))
 
 
 @pytest.mark.parametrize(
     "fact_updates",
     [
-        dict(date_link=dict(kind="cross_passage", candidate_id="D9", rationale="x")),
-        dict(date_link=dict(kind="other", candidate_id="D1")),
-        dict(event_date_candidate_id="D1"),
-        dict(date_link_rationale="legacy free-standing field"),
+        {"date_link": {"kind": "cross_passage", "candidate_id": "D9", "rationale": "x"}},
+        {"date_link": {"kind": "other", "candidate_id": "D1"}},
+        {"event_date_candidate_id": "D1"},
+        {"date_link_rationale": "legacy free-standing field"},
     ],
 )
 def test_unknown_candidate_or_legacy_date_fields_are_rejected(fact_updates):
@@ -338,14 +326,14 @@ def test_review_versions_cannot_cross_context_contracts():
             dict(
                 raw(),
                 facts=[
-                    dict(
-                        statement=raw()["facts"][0]["statement"],
-                        passage_id="P2",
-                        supporting_passage_ids=["P1", "P3"],
-                        event_date_candidate_id="D1",
-                        date_link_rationale="Cùng cuộc họp về dự thảo.",
-                        reported_status="proposed",
-                    )
+                    {
+                        "statement": raw()["facts"][0]["statement"],
+                        "passage_id": "P2",
+                        "supporting_passage_ids": ["P1", "P3"],
+                        "event_date_candidate_id": "D1",
+                        "date_link_rationale": "Cùng cuộc họp về dự thảo.",
+                        "reported_status": "proposed",
+                    }
                 ],
             ),
             row(TEXT),
@@ -396,22 +384,22 @@ def test_native_run_carries_context_to_review_and_writer_packet(tmp_path, monkey
         raw(),
         relevance_passage_id="P2",
         facts=[
-            dict(
-                statement=(
+            {
+                "statement": (
                     "Chương trình thí điểm phục hồi chức năng bắt đầu ngày 10/10/2026, "
                     "hỗ trợ nhóm trên 65 tuổi tự sinh hoạt tại nhà."
                 ),
-                passage_id="P1",
-                supporting_passage_ids=["P2"],
-                context=dict(
-                    actor=None,
-                    document=bind("P1", "Chương trình thí điểm phục hồi chức năng"),
-                    population=bind("P2", "nhóm trên 65 tuổi"),
-                    status=bind("P1", "thí điểm"),
-                ),
-                date_link=dict(kind="same_passage", candidate_id="D1"),
-                reported_status="pilot",
-            )
+                "passage_id": "P1",
+                "supporting_passage_ids": ["P2"],
+                "context": {
+                    "actor": None,
+                    "document": bind("P1", "Chương trình thí điểm phục hồi chức năng"),
+                    "population": bind("P2", "nhóm trên 65 tuổi"),
+                    "status": bind("P1", "thí điểm"),
+                },
+                "date_link": {"kind": "same_passage", "candidate_id": "D1"},
+                "reported_status": "pilot",
+            }
         ],
     )
     r = review(

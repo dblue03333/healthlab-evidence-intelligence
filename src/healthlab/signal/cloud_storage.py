@@ -58,7 +58,7 @@ class GCSObjectStore:
             )
         except self.precondition_failed:
             if self.read(digest) != content:
-                raise IngestionError("cache_corrupt", "Existing cloud object differs")
+                raise IngestionError("cache_corrupt", "Existing cloud object differs") from None
         except Exception as exc:
             raise IngestionError("cloud_object_io", "Cloud object upload failed") from exc
         return digest

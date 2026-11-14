@@ -301,14 +301,14 @@ def resolve_ids(payload, article, *, version="gold-editorial-10"):
         ):
             raise ValueError("Date candidate does not belong to fact passage")
         resolved.append(
-            dict(
-                statement=fact.statement,
-                quote=by_id[fact.passage_id]["quote"],
-                event_date=selected["date"] if selected else None,
-                date_evidence=context,
-                date_link_rationale=fact.date_link_rationale,
-                reported_status=fact.reported_status,
-            )
+            {
+                "statement": fact.statement,
+                "quote": by_id[fact.passage_id]["quote"],
+                "event_date": selected["date"] if selected else None,
+                "date_evidence": context,
+                "date_link_rationale": fact.date_link_rationale,
+                "reported_status": fact.reported_status,
+            }
         )
     raw = value.model_dump(exclude={"relevance_passage_id", "facts"})
     return dict(raw, relevance_quote=by_id[value.relevance_passage_id]["quote"], facts=resolved)
@@ -356,17 +356,22 @@ def resolve_reference_ids(payload, article, *, version=VERSION):
                 )
                 if dropped:
                     repairs.append(
-                        dict(fact_index=index, field="date_link", action="dropped", reason=dropped)
+                        {
+                            "fact_index": index,
+                            "field": "date_link",
+                            "action": "dropped",
+                            "reason": dropped,
+                        }
                     )
                     link = selected = None
                 elif not cross and link["kind"] == "cross_passage":
                     repairs.append(
-                        dict(
-                            fact_index=index,
-                            field="date_link",
-                            action="retyped",
-                            reason="candidate_in_primary_passage",
-                        )
+                        {
+                            "fact_index": index,
+                            "field": "date_link",
+                            "action": "retyped",
+                            "reason": "candidate_in_primary_passage",
+                        }
                     )
                     link = dict(link, kind="same_passage")
             if link and selected is None:

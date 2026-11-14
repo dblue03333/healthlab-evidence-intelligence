@@ -51,7 +51,7 @@ def test_literal_date_catalog_marks_inferred_basis_only_under_current_policy():
 
 
 def test_fact_date_supported_accepts_resolved_yearless_date():
-    fact = dict(quote="Sáng 2/11, đoàn kiểm tra làm việc", event_date="2026-11-02")
+    fact = {"quote": "Sáng 2/11, đoàn kiểm tra làm việc", "event_date": "2026-11-02"}
     assert not fact_date_supported(fact, policy=DATE_POLICY)
     assert fact_date_supported(fact, policy=DATE_POLICY, publication_date="2026-11-03")
     assert not fact_date_supported(fact, publication_date="2026-11-03")

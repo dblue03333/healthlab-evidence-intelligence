@@ -127,7 +127,7 @@ def test_captured_hcm_stale_listing_does_not_lose_previously_observed_october_ar
     for name in ["hcm_coverage_listing_20261027.html.gz", "hcm_sidebar_listing_20261026.html.gz"]:
         listing = gzip.decompress((fixtures / name).read_bytes())
 
-        def respond(request):
+        def respond(request, listing=listing):
             return httpx.Response(
                 200,
                 content=listing if str(request.url) == src.url else articles[str(request.url)],

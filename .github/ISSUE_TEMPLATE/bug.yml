@@ -1,0 +1,57 @@
+name: Bug
+description: Report behavior that differs from the documented contract
+title: "[BUG] "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is wrong?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Commands and inputs, using synthetic or public data.
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: dropdown
+    id: impact
+    attributes:
+      label: Impact
+      options:
+        - Critical - wrong or unapproved content could reach readers, or data is lost
+        - High - the weekly issue is blocked
+        - Medium - wrong behavior with a workaround
+        - Low - minor
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: >-
+        Run IDs, error codes and command output. Leave out credentials, raw source
+        contents and private run files.

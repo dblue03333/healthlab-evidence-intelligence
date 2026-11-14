@@ -49,7 +49,7 @@ def test_topic_gate_releases_every_fact_without_flags():
     gate = topic_gate(canonical(), WINDOW)
     assert gate["eligible"] and gate["reasons"] == []
     assert gate["facts"] == [
-        dict(fact_index=0, released=True, drop_reasons=[], flags=[], in_window_date=True)
+        {"fact_index": 0, "released": True, "drop_reasons": [], "flags": [], "in_window_date": True}
     ]
 
 
@@ -113,12 +113,12 @@ def test_v18_adopts_only_scope_from_a_reviewed_v17_parent(tmp_path, monkeypatch)
     ed.adopt_previous(store, child["run_id"], parent["run_id"])
     result = ed.adopt_reviewed(store, child["run_id"], parent["run_id"])
 
-    assert result == dict(
-        run_id=child["run_id"],
-        parent_run_id=parent["run_id"],
-        scope_adopted=1,
-        scope_new_calls_needed=0,
-    )
+    assert result == {
+        "run_id": child["run_id"],
+        "parent_run_id": parent["run_id"],
+        "scope_adopted": 1,
+        "scope_new_calls_needed": 0,
+    }
     saved = store.load(child["run_id"])
     assert saved["prepared_review_roles"] == ["scope"] and "review_scope" not in saved
     assert {j["role"] for j in ed.jobs(store, saved)} == {"classify", "scope"}
@@ -127,22 +127,24 @@ def test_v18_adopts_only_scope_from_a_reviewed_v17_parent(tmp_path, monkeypatch)
 
 
 def test_preview_shows_a_date_taken_from_another_passage():
-    evidence = dict(
-        evidence_id="E1",
-        url="https://example.org/a",
-        title="Nguồn",
-        quote="Tỉnh mở rộng mô hình chăm sóc tại nhà.",
-        date_evidence=dict(quote="Ngày 10/10/2026, tỉnh họp sơ kết."),
-    )
+    evidence = {
+        "evidence_id": "E1",
+        "url": "https://example.org/a",
+        "title": "Nguồn",
+        "quote": "Tỉnh mở rộng mô hình chăm sóc tại nhà.",
+        "date_evidence": {"quote": "Ngày 10/10/2026, tỉnh họp sơ kết."},
+    }
     draft = ed.EditorialDraft(
         title="Chăm sóc tại nhà",
         sections=[
-            dict(
-                title="Mô hình",
-                facts=[dict(text="Tỉnh mở rộng mô hình chăm sóc tại nhà.", evidence_ids=["E1"])],
-                interpretation="Theo dõi thêm.",
-                uncertainty="Chưa có kết quả.",
-            )
+            {
+                "title": "Mô hình",
+                "facts": [
+                    {"text": "Tỉnh mở rộng mô hình chăm sóc tại nhà.", "evidence_ids": ["E1"]}
+                ],
+                "interpretation": "Theo dõi thêm.",
+                "uncertainty": "Chưa có kết quả.",
+            }
         ],
     )
     _, html, _ = _draft_body(draft, {"E1": evidence}, True)

@@ -67,17 +67,17 @@ def evidence_packet(store, run_id):
             )
         eligible = gate["eligible"]
         articles.append(
-            dict(
-                document_id=row["document_id"],
-                title=row["title"],
-                url=row["url"],
-                proposal=p,
-                review=review,
-                scope_assessment=scope,
-                scope_gate=scope_result,
-                eligible_for_unapproved_draft=eligible,
-                review_gate=gate,
-            )
+            {
+                "document_id": row["document_id"],
+                "title": row["title"],
+                "url": row["url"],
+                "proposal": p,
+                "review": review,
+                "scope_assessment": scope,
+                "scope_gate": scope_result,
+                "eligible_for_unapproved_draft": eligible,
+                "review_gate": gate,
+            }
         )
         if eligible:
             # topic-only-1 passes every source-bound fact; the approver checks them against

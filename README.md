@@ -22,6 +22,7 @@ Install Python 3.11 and [uv](https://docs.astral.sh/uv/), then run:
 ```bash
 uv sync --locked --extra dev --extra cloud
 uv run --locked python scripts/ci_checks.py
+uv run --locked pre-commit install  # once: lint and format before each commit
 ```
 
 Use `uv run --locked python -m healthlab.data --help` or `--help` on any entry

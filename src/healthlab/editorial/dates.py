@@ -53,7 +53,12 @@ def literal_dates(text):
         except ValueError:
             continue
         result.append(
-            dict(date=value.isoformat(), start=match.start(), end=match.end(), quote=match[0])
+            {
+                "date": value.isoformat(),
+                "start": match.start(),
+                "end": match.end(),
+                "quote": match[0],
+            }
         )
     return result
 
@@ -98,7 +103,12 @@ def editorial_literal_dates(text, *, policy=None, publication_date=None):
         if any(match.start() < item["end"] and item["start"] < match.end() for item in dates):
             continue
         dates.append(
-            dict(date=value.isoformat(), start=match.start(), end=match.end(), quote=match[0])
+            {
+                "date": value.isoformat(),
+                "start": match.start(),
+                "end": match.end(),
+                "quote": match[0],
+            }
         )
     for item in resolve_yearless_dates(text, publication_date):
         if not any(item["start"] < d["end"] and d["start"] < item["end"] for d in dates):
@@ -131,13 +141,13 @@ def resolve_yearless_dates(text, publication_date):
                 break
         if value is None or (published - value).days > YEAR_INFERENCE_MAX_DAYS:
             continue
-        item = dict(
-            date=value.isoformat(),
-            start=match.start(),
-            end=match.end(),
-            quote=match[0],
-            basis=INFERRED_YEAR_BASIS,
-        )
+        item = {
+            "date": value.isoformat(),
+            "start": match.start(),
+            "end": match.end(),
+            "quote": match[0],
+            "basis": INFERRED_YEAR_BASIS,
+        }
         if date_role(text, item) in {"as_of", "deadline", "range_endpoint"}:
             continue
         found.append(item)
@@ -170,7 +180,7 @@ def incomplete_date_mentions(text):
             date(2000, month, day)  # Allow a possible leap day without asserting a year.
         except ValueError:
             continue
-        yield dict(kind="yearless", quote=match[0], start=match.start(), end=match.end())
+        yield {"kind": "yearless", "quote": match[0], "start": match.start(), "end": match.end()}
     for kind, pattern in _RELATIVE.items():
         for match in pattern.finditer(text):
-            yield dict(kind=kind, quote=match[0], start=match.start(), end=match.end())
+            yield {"kind": kind, "quote": match[0], "start": match.start(), "end": match.end()}

@@ -49,20 +49,17 @@ def canonical(value=None, article=None):
 
 
 def review(**updates):
-    return (
-        dict(
-            review_version="editorial-review-5",
-            relevance="relevant",
-            topic_passage_ids=["P1"],
-            supported_fact_indexes=[0],
-            supported_date_fact_indexes=[],
-            supported_citation_fact_indexes=[0],
-            blocking_findings=[],
-            audit_notes=[],
-            rationale="Exact attached passages contain the full attributed draft statement.",
-        )
-        | updates
-    )
+    return {
+        "review_version": "editorial-review-5",
+        "relevance": "relevant",
+        "topic_passage_ids": ["P1"],
+        "supported_fact_indexes": [0],
+        "supported_date_fact_indexes": [],
+        "supported_citation_fact_indexes": [0],
+        "blocking_findings": [],
+        "audit_notes": [],
+        "rationale": "Exact attached passages contain the full attributed draft statement.",
+    } | updates
 
 
 def test_all_support_passages_have_exact_identity_and_survive_canonicalization():
@@ -137,12 +134,12 @@ def test_full_source_support_cannot_substitute_for_missing_attached_details():
     r = review(
         supported_citation_fact_indexes=[],
         blocking_findings=[
-            dict(
-                code="citation_incomplete",
-                explanation="P2/P3 details are not attached.",
-                fact_indexes=[0],
-                passage_ids=["P2", "P3"],
-            )
+            {
+                "code": "citation_incomplete",
+                "explanation": "P2/P3 details are not attached.",
+                "fact_indexes": [0],
+                "passage_ids": ["P2", "P3"],
+            }
         ],
     )
     result = validate_review(r, p, ["P1", "P2", "P3"], WINDOW)
@@ -164,12 +161,12 @@ def test_invalid_citation_attestation_indexes_are_rejected(indexes):
 
 
 def test_conflicting_citation_finding_or_empty_fact_reference_is_rejected():
-    f = dict(
-        code="citation_incomplete",
-        explanation="Detail missing",
-        fact_indexes=[0],
-        passage_ids=["P2"],
-    )
+    f = {
+        "code": "citation_incomplete",
+        "explanation": "Detail missing",
+        "fact_indexes": [0],
+        "passage_ids": ["P2"],
+    }
     with pytest.raises(ValueError, match="contradicts"):
         validate_review(review(blocking_findings=[f]), canonical(), ["P1", "P2", "P3"], WINDOW)
     f["fact_indexes"] = []

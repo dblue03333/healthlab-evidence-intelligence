@@ -1,0 +1,38 @@
+name: Spike
+description: Time-boxed research before committing to an implementation
+title: "[SPIKE] "
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What uncertainty must this spike resolve?
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+    validations:
+      required: true
+
+  - type: textarea
+    id: investigate
+    attributes:
+      label: Investigation
+      description: What will be investigated, and which live actions (if any) need authorization?
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      placeholder: |
+        - [ ] Question answered with evidence
+        - [ ] Options and risks documented
+        - [ ] Recommendation made (it may be "do not build this yet")
+        - [ ] Follow-up issues created if required
+    validations:
+      required: true

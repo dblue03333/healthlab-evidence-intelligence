@@ -24,7 +24,7 @@ from tests.test_editorial_side_news import DRAFT, HELD
 
 OFF = "off"
 OFF_URL = "https://example.org/off"
-MENTION = dict(verdict="mention_only", ageing_context=None, substantive_detail=None)
+MENTION = {"verdict": "mention_only", "ageing_context": None, "substantive_detail": None}
 
 
 def off_topic():
@@ -227,7 +227,7 @@ def test_approver_writes_the_sentence_for_a_flagged_article_without_facts(tmp_pa
         rationale="ok",
     )
     event = json.loads(store.read(approved["approval_sha256"]))
-    assert event["recall_outcomes"]["flags"] == [dict(document_id=OFF, included=True)]
+    assert event["recall_outcomes"]["flags"] == [{"document_id": OFF, "included": True}]
     assert event["recall_outcomes"]["model"] == "fake-test"
 
 
@@ -239,8 +239,8 @@ def test_an_ignored_flag_is_recorded_as_not_included(tmp_path, monkeypatch):
     )
     event = json.loads(store.read(approved["approval_sha256"]))
     assert event["recall_outcomes"]["flags"] == [
-        dict(document_id=HELD, included=False),
-        dict(document_id=OFF, included=False),
+        {"document_id": HELD, "included": False},
+        {"document_id": OFF, "included": False},
     ]
 
 

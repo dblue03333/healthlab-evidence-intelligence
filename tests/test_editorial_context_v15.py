@@ -110,8 +110,8 @@ def test_whole_sentence_facet_is_dropped_as_overlong():
     value = raw(
         passage_id="P1",
         supporting_passage_ids=[],
-        context=dict(actor=bind("P1", LONG), document=None, population=None, status=None),
-        date_link=dict(kind="same_passage", candidate_id="D1"),
+        context={"actor": bind("P1", LONG), "document": None, "population": None, "status": None},
+        date_link={"kind": "same_passage", "candidate_id": "D1"},
     )
     p = canonical(value, LONG)
     assert p["resolved_facts"][0]["context"]["actor"] is None
@@ -119,12 +119,12 @@ def test_whole_sentence_facet_is_dropped_as_overlong():
 
 
 def test_every_facet_invalid_still_yields_a_valid_article():
-    garbage = dict(
-        actor=bind("P2", "Bộ Y tế ... đề xuất"),
-        document=bind("P2", "Nghị định 99"),
-        population=bind("P2", "người cao tuổi"),
-        status=bind("P2", "đã ban hành"),
-    )
+    garbage = {
+        "actor": bind("P2", "Bộ Y tế ... đề xuất"),
+        "document": bind("P2", "Nghị định 99"),
+        "population": bind("P2", "người cao tuổi"),
+        "status": bind("P2", "đã ban hành"),
+    }
     p = canonical(raw(context=garbage))
     assert all(v is None for v in p["resolved_facts"][0]["context"].values())
     assert len(p["binding_repairs"]) == 4
@@ -135,14 +135,19 @@ def test_overlong_or_tampered_binding_cannot_reenter_canonical_proposal():
         raw(
             passage_id="P1",
             supporting_passage_ids=[],
-            context=dict(actor=None, document=None, population=None, status=None),
+            context={"actor": None, "document": None, "population": None, "status": None},
             date_link=None,
         ),
         LONG,
     )
     fact = value["facts"][0]
     start = fact["supporting_passages"][0]["start"]
-    fact["context"]["actor"] = dict(passage_id="P1", quote=LONG, start=start, end=start + len(LONG))
+    fact["context"]["actor"] = {
+        "passage_id": "P1",
+        "quote": LONG,
+        "start": start,
+        "end": start + len(LONG),
+    }
     with pytest.raises(ValueError, match="longer than a context phrase"):
         ed.canonical_proposal(value, row(LONG), WINDOW, version=V15)
     tampered = resolve()
@@ -150,7 +155,9 @@ def test_overlong_or_tampered_binding_cannot_reenter_canonical_proposal():
     with pytest.raises(ValueError):
         ed.canonical_proposal(tampered, row(TEXT), WINDOW, version=V15)
     bad = resolve()
-    bad["binding_repairs"] = [dict(fact_index=0, field="cohort", action="dropped", reason="x")]
+    bad["binding_repairs"] = [
+        {"fact_index": 0, "field": "cohort", "action": "dropped", "reason": "x"}
+    ]
     with pytest.raises(ValidationError):
         ed.canonical_proposal(bad, row(TEXT), WINDOW, version=V15)
 
@@ -183,7 +190,12 @@ def test_a_dropped_facet_on_one_fact_does_not_block_a_complete_sibling():
         statement="Danh mục gồm nguy cơ ngã và loãng xương.",
         passage_id="P3",
         supporting_passage_ids=[],
-        context=dict(actor=bind("P3", "Bộ Y tế"), document=None, population=None, status=None),
+        context={
+            "actor": bind("P3", "Bộ Y tế"),
+            "document": None,
+            "population": None,
+            "status": None,
+        },
         date_link=None,
     )
     value["facts"].append(second)
@@ -208,23 +220,23 @@ def ceremony_fact(link):
         statement="Bệnh viện Lão khoa ra mắt Đề án chăm sóc người cao tuổi tại nhà.",
         passage_id="P2",
         supporting_passage_ids=["P1"],
-        context=dict(
-            actor=bind("P1", "Bệnh viện Lão khoa"),
-            document=bind("P2", "Đề án chăm sóc người cao tuổi tại nhà"),
-            population=None,
-            status=bind("P2", "ra mắt"),
-        ),
+        context={
+            "actor": bind("P1", "Bệnh viện Lão khoa"),
+            "document": bind("P2", "Đề án chăm sóc người cao tuổi tại nhà"),
+            "population": None,
+            "status": bind("P2", "ra mắt"),
+        },
         date_link=link,
         reported_status="announced",
     )
 
 
 def test_rationale_with_an_inferred_year_or_other_day_drops_the_date_link():
-    link = dict(
-        kind="cross_passage",
-        candidate_id="D1",
-        rationale="Lễ diễn ra ngày 24/10/2026 tại bệnh viện.",
-    )
+    link = {
+        "kind": "cross_passage",
+        "candidate_id": "D1",
+        "rationale": "Lễ diễn ra ngày 24/10/2026 tại bệnh viện.",
+    }
     p = canonical(ceremony_fact(link), CEREMONY)
     fact = p["resolved_facts"][0]
     assert fact["event_date"] is None and fact["date_evidence"] is None
@@ -233,9 +245,11 @@ def test_rationale_with_an_inferred_year_or_other_day_drops_the_date_link():
 
 
 def test_range_endpoint_date_is_flagged_for_review_only_in_v15():
-    link = dict(
-        kind="cross_passage", candidate_id="D1", rationale="Cùng buổi lễ kỷ niệm của bệnh viện."
-    )
+    link = {
+        "kind": "cross_passage",
+        "candidate_id": "D1",
+        "rationale": "Cùng buổi lễ kỷ niệm của bệnh viện.",
+    }
     p = canonical(ceremony_fact(link), CEREMONY)
     assert p["resolved_facts"][0]["event_date"] == "2026-10-27"
     assert fact_date_checks(p, WINDOW)[0]["date_is_range_endpoint"] is True
@@ -252,11 +266,11 @@ def test_range_endpoint_date_is_flagged_for_review_only_in_v15():
     ("link", "expected"),
     [
         (
-            dict(kind="same_passage", candidate_id="D1"),
+            {"kind": "same_passage", "candidate_id": "D1"},
             ("date_link", "dropped", "cross_passage_without_rationale"),
         ),
         (
-            dict(kind="cross_passage", candidate_id="D9", rationale="x"),
+            {"kind": "cross_passage", "candidate_id": "D9", "rationale": "x"},
             ("date_link", "dropped", "unknown_candidate"),
         ),
     ],
@@ -271,7 +285,7 @@ def test_cross_passage_kind_for_a_primary_passage_date_is_retyped():
     value = raw(
         passage_id="P1",
         supporting_passage_ids=["P2", "P3"],
-        date_link=dict(kind="cross_passage", candidate_id="D1", rationale="Cùng cuộc họp."),
+        date_link={"kind": "cross_passage", "candidate_id": "D1", "rationale": "Cùng cuộc họp."},
     )
     p = canonical(value)
     fact = p["resolved_facts"][0]
@@ -343,22 +357,22 @@ def test_native_run_repairs_instead_of_failing_and_packet_keeps_the_record(tmp_p
         raw(),
         relevance_passage_id="P2",
         facts=[
-            dict(
-                statement=(
+            {
+                "statement": (
                     "Chương trình thí điểm phục hồi chức năng bắt đầu ngày 10/10/2026, "
                     "hỗ trợ nhóm trên 65 tuổi tự sinh hoạt tại nhà."
                 ),
-                passage_id="P1",
-                supporting_passage_ids=["P2"],
-                context=dict(
-                    actor=bind("P2", "Bộ Y tế"),
-                    document=bind("P1", "Chương trình thí điểm phục hồi chức năng"),
-                    population=bind("P2", "Nhóm trên 65 tuổi"),
-                    status=bind("P1", "thí điểm"),
-                ),
-                date_link=dict(kind="same_passage", candidate_id="D1"),
-                reported_status="pilot",
-            )
+                "passage_id": "P1",
+                "supporting_passage_ids": ["P2"],
+                "context": {
+                    "actor": bind("P2", "Bộ Y tế"),
+                    "document": bind("P1", "Chương trình thí điểm phục hồi chức năng"),
+                    "population": bind("P2", "Nhóm trên 65 tuổi"),
+                    "status": bind("P1", "thí điểm"),
+                },
+                "date_link": {"kind": "same_passage", "candidate_id": "D1"},
+                "reported_status": "pilot",
+            }
         ],
     )
     r = review(

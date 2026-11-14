@@ -1,0 +1,34 @@
+# Runs before each commit after `uv run --locked pre-commit install`.
+# Ruff runs from uv.lock, so the hook, scripts/ci_checks.py and CI use the same version.
+# Fixtures and recorded samples are left byte-for-byte: tests compare their hashes.
+exclude: ^(tests/fixtures|experiments)/
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md] # Two trailing spaces are a Markdown line break.
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-toml
+      - id: check-added-large-files
+      - id: check-merge-conflict
+      - id: debug-statements
+      - id: detect-private-key
+
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: uv run --locked ruff check --fix --exit-non-zero-on-fix
+        language: system
+        types: [python]
+        files: ^(src|tests|scripts)/
+      - id: ruff-format
+        name: ruff format
+        entry: uv run --locked ruff format
+        language: system
+        types: [python]
+        files: ^(src|tests|scripts)/

@@ -123,7 +123,7 @@ def repair_binding(binding, spans):
     text = span["quote"][start:end]
     if len(text) > MAX_CONTEXT_CHARS:
         return None, "dropped", "overlong_not_a_phrase"
-    resolved = dict(passage_id=span["passage_id"], quote=text, start=span["start"] + start)
+    resolved = {"passage_id": span["passage_id"], "quote": text, "start": span["start"] + start}
     resolved["end"] = resolved["start"] + len(text)
     reason = {"normalized": "case_or_whitespace", "rebound": "found_in_other_attached_passage"}
     return resolved, action, reason.get(action)
@@ -138,7 +138,9 @@ def repair_context(value, spans, fact_index):
             (None, None, None) if binding is None else repair_binding(binding, spans)
         )
         if action:
-            repairs.append(dict(fact_index=fact_index, field=facet, action=action, reason=reason))
+            repairs.append(
+                {"fact_index": fact_index, "field": facet, "action": action, "reason": reason}
+            )
     return result, repairs
 
 

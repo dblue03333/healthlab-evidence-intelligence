@@ -38,7 +38,7 @@ def same_passage(**updates):
         passage_id="P1",
         supporting_passage_ids=[],
         context=context(status=None),
-        date_link=dict(kind="same_passage", candidate_id="D1"),
+        date_link={"kind": "same_passage", "candidate_id": "D1"},
         **updates,
     )
 
@@ -56,12 +56,17 @@ def with_undated_second_fact(value):
     return value
 
 
-NA = dict(actor="not_applicable", document="not_applicable")
-NA_ALL = NA | dict(population="not_applicable", status="not_applicable")
+NA = {"actor": "not_applicable", "document": "not_applicable"}
+NA_ALL = NA | {"population": "not_applicable", "status": "not_applicable"}
 
 
 def finding(code, indexes):
-    return dict(code=code, explanation="Lý do tổng hợp.", fact_indexes=indexes, passage_ids=[])
+    return {
+        "code": code,
+        "explanation": "Lý do tổng hợp.",
+        "fact_indexes": indexes,
+        "passage_ids": [],
+    }
 
 
 def test_policy_is_recorded_only_from_gold_editorial_17():
@@ -100,11 +105,11 @@ def test_cross_passage_date_without_reviewer_confirmation_drops_the_fact():
 
 def test_finding_drops_only_named_facts():
     p = canonical(with_undated_second_fact(raw()))
-    base = dict(
-        supported_fact_indexes=[0, 1],
-        supported_citation_fact_indexes=[0, 1],
-        context_assessments=[assessment(), assessment(1, **NA_ALL)],
-    )
+    base = {
+        "supported_fact_indexes": [0, 1],
+        "supported_citation_fact_indexes": [0, 1],
+        "context_assessments": [assessment(), assessment(1, **NA_ALL)],
+    }
     side = review_gate(
         p, review(**base, blocking_findings=[finding("claim_not_supported", [1])]), IDS, WINDOW
     )
@@ -130,7 +135,7 @@ def test_topic_disagreement_still_blocks():
 
 
 def test_writer_caution_only_when_flags_exist():
-    evidence = [dict(evidence_id="E1", quote="q")]
+    evidence = [{"evidence_id": "E1", "quote": "q"}]
     plain = ed.article_messages(WINDOW, evidence)[0]["content"]
     flagged = ed.article_messages(
         WINDOW, [dict(evidence[0], review_flags=["context_missing:status"])]
@@ -140,13 +145,13 @@ def test_writer_caution_only_when_flags_exist():
 
 
 def test_flags_show_in_approval_preview_but_not_in_email():
-    evidence = dict(
-        evidence_id="E1",
-        url="https://example.org/a",
-        title="Bài",
-        quote="Trích dẫn.",
-        review_flags=["context_missing:status"],
-    )
+    evidence = {
+        "evidence_id": "E1",
+        "url": "https://example.org/a",
+        "title": "Bài",
+        "quote": "Trích dẫn.",
+        "review_flags": ["context_missing:status"],
+    }
     claim = SimpleNamespace(text="Câu.", evidence_ids=["E1"])
     section = SimpleNamespace(
         title="Mục", facts=[claim], interpretation="Ý nghĩa.", uncertainty="Giới hạn."

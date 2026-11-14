@@ -19,29 +19,32 @@ SENDER = "sender@gmail.com"
 
 
 def drafted(tmp_path, monkeypatch, status="ready", source_status="completed", scope="substantive"):
-    review = dict(
-        relevance="relevant",
-        newsletter_eligible=True,
-        supported_fact_indexes=[0],
-        review_version="editorial-review-2",
-        topic_passage_ids=["P2"],
-        blocking_findings=[],
-        audit_notes=[],
-        rationale="Đoạn trích hỗ trợ đúng mốc và trạng thái thí điểm.",
-    )
-    draft = dict(
-        title="Thử nghiệm hỗ trợ phục hồi chức năng",
-        sections=[
-            dict(
-                title="Một chương trình thí điểm",
-                facts=[
-                    dict(text="Chương trình thí điểm bắt đầu ngày 10/10/2026.", evidence_ids=["E1"])
+    review = {
+        "relevance": "relevant",
+        "newsletter_eligible": True,
+        "supported_fact_indexes": [0],
+        "review_version": "editorial-review-2",
+        "topic_passage_ids": ["P2"],
+        "blocking_findings": [],
+        "audit_notes": [],
+        "rationale": "Đoạn trích hỗ trợ đúng mốc và trạng thái thí điểm.",
+    }
+    draft = {
+        "title": "Thử nghiệm hỗ trợ phục hồi chức năng",
+        "sections": [
+            {
+                "title": "Một chương trình thí điểm",
+                "facts": [
+                    {
+                        "text": "Chương trình thí điểm bắt đầu ngày 10/10/2026.",
+                        "evidence_ids": ["E1"],
+                    }
                 ],
-                interpretation="Có thể theo dõi thêm.",
-                uncertainty="Chưa có dữ liệu hiệu quả.",
-            )
+                "interpretation": "Có thể theo dõi thêm.",
+                "uncertainty": "Chưa có dữ liệu hiệu quả.",
+            }
         ],
-    )
+    }
     store, run, provider = setup_run(
         tmp_path, monkeypatch, [proposal(), review, scope_assessment(verdict=scope), draft]
     )
