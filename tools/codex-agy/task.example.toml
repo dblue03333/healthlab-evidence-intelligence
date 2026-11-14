@@ -1,0 +1,20 @@
+# Save a filled copy as WEBSITE-001.toml in your local task directory.
+# Replace this placeholder with the full output of git rev-parse HEAD.
+base = "REPLACE_WITH_FULL_COMMIT_HASH"
+
+# Example only. Replace with exact existing or planned file paths.
+allowed_paths = ["src/pages/index.astro"]
+
+brief = """
+Update the welcome copy on the website home page.
+
+Acceptance:
+- The home page uses the approved headline.
+- The navigation and layout stay the same.
+"""
+
+# Review instructions for the owner or reviewer. The bridge never runs this text.
+verification = """
+Run the website's existing local build/check command, then open the home page
+and check the headline and navigation.
+"""

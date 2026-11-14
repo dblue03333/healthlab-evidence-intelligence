@@ -46,3 +46,6 @@ configured model provider. Put runtime credentials in a local `.env` using
 Local workspace references include `STATUS_NEXT.md` for the latest checkpoint,
 `DATA_PIPELINE.md` for data contracts, and `docs/` and `reports/` for runbooks
 and verification evidence.
+
+For local development with Codex and Antigravity, see the
+[reusable MCP handoff template](tools/codex-agy/README.md).
