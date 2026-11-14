@@ -12,9 +12,11 @@ from healthlab.editorial.contracts import (
     READ_VERSIONS,
     VERSION,
     canonical_proposal,
+    passage_inputs,
     passage_policy,
     resolve_reference_ids,
 )
+from healthlab.editorial_dates import DATE_POLICY_VERSIONS
 from healthlab.editorial_passages import POLICY as PASSAGE_POLICY
 from healthlab.evidence import decode_model_json
 from healthlab.store import json_bytes
@@ -32,6 +34,8 @@ _RUNTIME_FILES = (
     "editorial/report.py",
     "editorial/runs.py",
     "editorial_passages.py",
+    "editorial_dates.py",
+    "editorial_origin.py",
     "editorial_review_policy.py",
     "editorial_scope.py",
     "provider.py",
@@ -152,6 +156,12 @@ def adopt_previous(store, run_id, parent_id, *, probes=()):
                 row = records[old["document_id"]]
                 # Live output cites passages by ID; resolve it exactly as inference does.
                 if "relevance_passage_id" in raw:
+                    if (run["version"] in DATE_POLICY_VERSIONS) != (
+                        parent["version"] in DATE_POLICY_VERSIONS
+                    ) and passage_inputs(row, version=run["version"]) != passage_inputs(
+                        row, version=parent["version"]
+                    ):
+                        continue  # The historical response used a different ID catalog.
                     raw = resolve_reference_ids(raw, row, version=run["version"])
                 result = canonical_proposal(raw, row, run["question"], version=run["version"])
                 reused[old["document_id"]] = (old, result, route)

@@ -9,7 +9,12 @@ from healthlab.editorial.contracts import (
     passage_inputs,
 )
 from healthlab.editorial.runs import jobs, load
-from healthlab.editorial_review_policy import review_gate
+from healthlab.editorial_review_policy import (
+    NO_REVIEW_POLICIES,
+    PUBLICATION_WINDOW_POLICY,
+    review_gate,
+    topic_gate,
+)
 from healthlab.editorial_scope import scope_gate
 
 
@@ -46,14 +51,20 @@ def evidence_packet(store, run_id):
         )
         review = reviews.get(job["document_id"])
         units, _ = passage_inputs(row, version=run["version"])
-        gate = review_gate(p, review, [u["passage_id"] for u in units], run["question"])
+        topic_only = p.get("release_policy") in NO_REVIEW_POLICIES
+        gate = (
+            topic_gate(p, run["question"])
+            if topic_only
+            else review_gate(p, review, [u["passage_id"] for u in units], run["question"])
+        )
         scope = scopes.get(job["document_id"])
         scope_result = scope_gate(scope, units) if requires_scope_assessment(run) else None
         if scope_result:
-            gate = {
-                "eligible": gate["eligible"] and scope_result["eligible"],
-                "reasons": gate["reasons"] + scope_result["reasons"],
-            }
+            gate = dict(
+                gate,
+                eligible=gate["eligible"] and scope_result["eligible"],
+                reasons=gate["reasons"] + scope_result["reasons"],
+            )
         eligible = gate["eligible"]
         articles.append(
             dict(
@@ -69,10 +80,32 @@ def evidence_packet(store, run_id):
             )
         )
         if eligible:
-            for index in review["supported_fact_indexes"]:
+            # topic-only-1 passes every source-bound fact; the approver checks them against
+            # the source. fact-flags-1 passes every undropped fact with its reviewer flags;
+            # earlier policies pass only reviewer-supported facts.
+            flagged = (
+                {f["fact_index"]: f["flags"] for f in gate["facts"] if f["released"]}
+                if "facts" in gate and not topic_only
+                else None
+            )
+            # publication-window-1 also records how the writer must date each fact.
+            bases = (
+                {f["fact_index"]: f["time_basis"] for f in gate["facts"]}
+                if gate.get("release_policy") == PUBLICATION_WINDOW_POLICY
+                else None
+            )
+            if topic_only:
+                indexes = [f["fact_index"] for f in gate["facts"] if f["released"]]
+            else:
+                indexes = (
+                    sorted(flagged) if flagged is not None else review["supported_fact_indexes"]
+                )
+            for index in indexes:
                 f = p["resolved_facts"][index]
-                if f.get("date_evidence") and index not in review.get(
-                    "supported_date_fact_indexes", []
+                if (
+                    not topic_only
+                    and f.get("date_evidence")
+                    and index not in review.get("supported_date_fact_indexes", [])
                 ):
                     continue  # Never pass an unreviewed cross-passage date to the writer.
                 if row["body"][f["start"] : f["end"]] != f["quote"]:
@@ -86,6 +119,15 @@ def evidence_packet(store, run_id):
                         title=row["title"],
                         raw_sha256=row["raw_sha256"],
                         **f,
+                        **({"review_flags": flagged[index]} if flagged is not None else {}),
+                        **(
+                            {
+                                "time_basis": bases[index],
+                                "publication_date": row["publication_date"],
+                            }
+                            if bases is not None
+                            else {}
+                        ),
                     )
                 )
     return {

@@ -11,9 +11,9 @@ from pathlib import Path
 from healthlab.config import FPTSettings
 from healthlab.data.power import awake_for_cli
 from healthlab.editorial.inference import run_calls
-from healthlab.editorial.planning import plan_draft, plan_review, plan_scope
+from healthlab.editorial.planning import adopt_reviewed, plan_draft, plan_review, plan_scope
 from healthlab.editorial.report import export_report
-from healthlab.editorial.runs import prepare
+from healthlab.editorial.runs import adopt_previous, prepare
 from healthlab.provider import FPTProvider
 from healthlab.store import RunStore
 
@@ -31,6 +31,11 @@ def main(argv=None):
     prep.add_argument("dataset_id")
     prep.add_argument("--source-store", type=Path, default=Path("outputs/data_20261026"))
     prep.add_argument("--call-budget", type=int, default=180)
+    adopt = commands.add_parser(
+        "adopt", help="Reuse a parent run's results where this run's prompts are identical"
+    )
+    adopt.add_argument("run_id")
+    adopt.add_argument("parent_run_id")
     for role in ("classify", "scope", "review", "draft", "report"):
         command = commands.add_parser(role)
         command.add_argument("run_id")
@@ -55,6 +60,10 @@ def main(argv=None):
                     provider,
                     call_budget=args.call_budget,
                 )
+            elif args.command == "adopt":
+                # Review adoption refuses to start while any classification still needs a call.
+                result = adopt_previous(store, args.run_id, args.parent_run_id)
+                result = dict(result, **adopt_reviewed(store, args.run_id, args.parent_run_id))
             elif args.command == "report":
                 result = export_report(store, args.run_id)
             else:

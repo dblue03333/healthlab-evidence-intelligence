@@ -12,6 +12,9 @@ from healthlab import editorial_issue as issue_mod
 from healthlab.store import RunStore
 from tests.test_editorial import proposal, scope_assessment, setup_run
 
+pytestmark = pytest.mark.usefixtures("review_runtime")
+
+
 SENDER = "sender@gmail.com"
 
 

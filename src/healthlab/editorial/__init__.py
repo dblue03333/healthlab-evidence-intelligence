@@ -32,7 +32,7 @@ from healthlab.editorial.contracts import (
 )
 from healthlab.editorial.inference import run_calls
 from healthlab.editorial.packet import evidence_packet, requires_scope_assessment
-from healthlab.editorial.planning import plan_draft, plan_review, plan_scope
+from healthlab.editorial.planning import adopt_reviewed, plan_draft, plan_review, plan_scope
 from healthlab.editorial.prompts import RUBRIC, article_messages, messages
 from healthlab.editorial.report import export_report
 from healthlab.editorial.runs import (
@@ -84,6 +84,7 @@ __all__ = [
     "SupportedIDFact",
     "SupportedReferenceProposal",
     "adopt_previous",
+    "adopt_reviewed",
     "allocated_calls",
     "article_messages",
     "canonical_proposal",

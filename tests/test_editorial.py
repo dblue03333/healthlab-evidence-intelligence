@@ -12,6 +12,9 @@ from healthlab.store import RunStore
 from tests.editorial_legacy import canonical_v12
 from tests.test_data_pilot import execute, transport
 
+pytestmark = pytest.mark.usefixtures("review_runtime")
+
+
 WINDOW = {"mindate": "2026-10-03", "maxdate": "2026-10-16"}
 QUOTE = "Chương trình thí điểm phục hồi chức năng bắt đầu ngày 10/10/2026 tại Việt Nam."
 BODY = QUOTE + " Hỗ trợ nhóm trên 65 tuổi tự sinh hoạt tại nhà."
@@ -444,8 +447,16 @@ def test_unexplained_or_mismatched_date_context_is_rejected(field, value):
 
 def test_date_without_year_does_not_become_a_candidate_from_publication_date():
     article = row("Ngày 10/10, lãnh đạo yêu cầu đào tạo chăm sóc người cao tuổi.")
-    _, dates = ed.passage_inputs(article)
+    _, dates = ed.passage_inputs(article, version="gold-editorial-15")
     assert dates == []
+
+
+def test_current_policy_resolves_a_yearless_date_in_code_and_marks_its_basis():
+    article = row("Ngày 10/10, lãnh đạo yêu cầu đào tạo chăm sóc người cao tuổi.")
+    _, dates = ed.passage_inputs(article)
+    assert [(d["date"], d["basis"]) for d in dates] == [
+        ("2026-10-10", "inferred_from_publication_year")
+    ]
 
 
 def test_only_independently_confirmed_linked_dates_reach_writer(tmp_path, monkeypatch):

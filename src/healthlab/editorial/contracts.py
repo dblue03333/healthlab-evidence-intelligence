@@ -1,6 +1,5 @@
 """Versioned editorial schemas and validation against frozen source text."""
 
-import re
 from types import SimpleNamespace
 from typing import Annotated, Literal
 
@@ -16,14 +15,25 @@ from healthlab.editorial_context import (
     resolve_context,
     validate_context,
 )
+from healthlab.editorial_dates import DATE_POLICY, DATE_POLICY_VERSIONS, editorial_literal_dates
+from healthlab.editorial_origin import footer_attributions
 from healthlab.editorial_passages import POLICY as PASSAGE_POLICY
 from healthlab.editorial_passages import editorial_passages
-from healthlab.editorial_review_policy import fact_date_supported
+from healthlab.editorial_review_policy import (
+    PUBLICATION_WINDOW_POLICY,
+    PUBLICATION_WINDOW_VERSIONS,
+    RELEASE_POLICY,
+    RELEASE_POLICY_VERSIONS,
+    TOPIC_ONLY_POLICY,
+    TOPIC_ONLY_VERSIONS,
+    current_basis,
+    fact_date_supported,
+    fact_time_basis,
+)
 from healthlab.models import Contract
 from healthlab.signal.triage import source_passages
-from healthlab.signal.triage_v5 import literal_dates
 
-VERSION = "gold-editorial-15"
+VERSION = "gold-editorial-19"
 # Finished known schemas stay readable; inference and mutations require the exact
 # current runtime. Legacy review findings never silently acquire new semantics.
 READ_VERSIONS = {
@@ -41,10 +51,21 @@ READ_VERSIONS = {
     "gold-editorial-12",
     "gold-editorial-13",
     "gold-editorial-14",
+    "gold-editorial-15",
+    "gold-editorial-16",
+    "gold-editorial-17",
+    "gold-editorial-18",
     VERSION,
 }
-# Context contract per version: v14 rejects any invalid binding; v15 repairs or drops facets.
-CONTEXT_CONTRACTS = {"gold-editorial-14": "fact-context-1", "gold-editorial-15": "fact-context-2"}
+# Context contract per version: v14 rejects invalid bindings; later versions repair or drop them.
+CONTEXT_CONTRACTS = {
+    "gold-editorial-14": "fact-context-1",
+    "gold-editorial-15": "fact-context-2",
+    "gold-editorial-16": "fact-context-2",
+    "gold-editorial-17": "fact-context-2",
+    "gold-editorial-18": "fact-context-2",
+    "gold-editorial-19": "fact-context-2",
+}
 MAX_BODY_CHARS = 20_000
 
 
@@ -245,8 +266,11 @@ def passage_inputs(article, *, version=VERSION):
         else source_passages(SimpleNamespace(text=article["body"]))
     )
     dates = []
+    policy = DATE_POLICY if version in DATE_POLICY_VERSIONS else None
     for unit in units:
-        for value in literal_dates(unit["quote"]):
+        for value in editorial_literal_dates(
+            unit["quote"], policy=policy, publication_date=article.get("publication_date")
+        ):
             dates.append(
                 dict(candidate_id=f"D{len(dates) + 1}", passage_id=unit["passage_id"], **value)
             )
@@ -354,14 +378,18 @@ def resolve_reference_ids(payload, article, *, version=VERSION):
                 raise ValueError("Date link kind differs from selected passage")
             fact["event_date_candidate_id"] = link["candidate_id"] if link else None
             fact["date_link_rationale"] = link.get("rationale") if link else None
-        # v13 resolution preserves the established exact-date and four-span policy.
-        result = resolve_reference_ids(value, article, version="gold-editorial-13")
+        result = _resolve_reference_facts(value, article, version=version, supported=True)
         for fact, context in zip(result["facts"], contexts, strict=True):
             fact["context"] = context
         if repair:
             result["binding_repairs"] = repairs
         return result
-    supported = version == "gold-editorial-13"
+    return _resolve_reference_facts(
+        payload, article, version=version, supported=version == "gold-editorial-13"
+    )
+
+
+def _resolve_reference_facts(payload, article, *, version, supported):
     model = SupportedReferenceProposal if supported else ReferenceArticleProposal
     value = model.model_validate(payload).model_dump()
     units, dates = passage_inputs(article, version=version)
@@ -409,6 +437,7 @@ class EditorialDraft(Contract):
 
 def canonical_proposal(value, article, window, *, version=VERSION):
     contract = CONTEXT_CONTRACTS.get(version)
+    date_policy = DATE_POLICY if version in DATE_POLICY_VERSIONS else None
     model = (
         RepairedContextArticleProposal
         if contract == "fact-context-2"
@@ -420,6 +449,7 @@ def canonical_proposal(value, article, window, *, version=VERSION):
     )
     p = model.model_validate(value)
     body = article["body"]
+    publication_date = article.get("publication_date") if date_policy else None
     if p.relevance_quote not in body:
         raise ValueError("Relevance quote is not literal article text")
     resolved, holds = [], []
@@ -434,7 +464,9 @@ def canonical_proposal(value, article, window, *, version=VERSION):
                 raise ValueError("Date evidence differs from frozen source passage")
             if not fact.date_link_rationale or fact.event_date is None:
                 raise ValueError("Date context lacks an event date or linkage rationale")
-        if fact.event_date is not None and not fact_date_supported(fact.model_dump()):
+        if fact.event_date is not None and not fact_date_supported(
+            fact.model_dump(), policy=date_policy, publication_date=publication_date
+        ):
             holds.append(f"fact_{index}:event_date_not_literal_in_quote")
         if isinstance(fact, SupportedEvidenceFact):
             spans = [s.model_dump() for s in fact.supporting_passages]
@@ -455,17 +487,41 @@ def canonical_proposal(value, article, window, *, version=VERSION):
         resolved.append(dict(fact.model_dump(), start=start, end=start + len(fact.quote)))
     in_window = any(
         f.event_date
-        and fact_date_supported(f.model_dump())
+        and fact_date_supported(
+            f.model_dump(), policy=date_policy, publication_date=publication_date
+        )
         and window["mindate"] <= f.event_date <= window["maxdate"]
         for f in p.facts
     )
+    if version in PUBLICATION_WINDOW_VERSIONS:
+        # publication-window-1: an undated fact in an article published in the period, or a
+        # scheduled date after it, is current too; a fact dated before the period is not.
+        in_window = any(
+            current_basis(
+                fact_time_basis(
+                    f.event_date,
+                    fact_date_supported(
+                        f.model_dump(), policy=date_policy, publication_date=publication_date
+                    ),
+                    publication_date,
+                    window,
+                ),
+                publication_date,
+                window,
+            )
+            for f in p.facts
+        )
     # A footer attribution forces origin review regardless of model confidence.
-    external_footer = bool(re.search(r"(?:Nguồn|Theo)\s*:\s*[^\n]+", body[-2500:], re.I))
+    # Under the current date policy a footer naming only trusted publishers is accepted as a
+    # repost from a known outlet; any other footer still forces origin review.
+    has_footer, trusted_hosts, all_trusted = footer_attributions(body)
+    trusted_repost = bool(date_policy and has_footer and all_trusted and trusted_hosts)
+    external_footer = has_footer and not trusted_repost
     candidate = (
         p.relevance == "relevant"
         and p.jurisdiction == "vietnam"
         and p.content_kind == "new_development"
-        and p.source_role == "original"
+        and (p.source_role == "original" or (trusted_repost and p.source_role == "repost"))
         and in_window
         and not holds
         and not external_footer
@@ -480,4 +536,14 @@ def canonical_proposal(value, article, window, *, version=VERSION):
     )
     if contract:
         result["context_contract"] = contract
+    if date_policy:
+        result["date_policy"] = date_policy
+        result["publication_date"] = publication_date
+        result["trusted_origin_hosts"] = trusted_hosts if trusted_repost else []
+    if version in RELEASE_POLICY_VERSIONS:
+        result["release_policy"] = RELEASE_POLICY
+    elif version in PUBLICATION_WINDOW_VERSIONS:
+        result["release_policy"] = PUBLICATION_WINDOW_POLICY
+    elif version in TOPIC_ONLY_VERSIONS:
+        result["release_policy"] = TOPIC_ONLY_POLICY
     return result
