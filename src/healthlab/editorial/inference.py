@@ -1,7 +1,7 @@
 """Dispatch bounded editorial calls and record validation results."""
 
 import json
-import sys
+import logging
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event, Lock
 
@@ -28,6 +28,8 @@ from healthlab.models import IngestionError
 from healthlab.pipeline import audit_writer
 from healthlab.signal.diagnostics import Span, exception_diagnostic
 from healthlab.store import json_bytes
+
+logger = logging.getLogger(__name__)
 
 
 def run_calls(store, run_id, provider, *, role="classify", workers=3, max_calls=180):
@@ -138,17 +140,12 @@ def run_calls(store, run_id, provider, *, role="classify", workers=3, max_calls=
             finally:
                 job["timing"] = span.finish()
                 store.save(job)
-                print(
-                    json.dumps(
-                        {
-                            "role": role,
-                            "document_id": job.get("document_id"),
-                            "status": job["status"],
-                            "error_code": job.get("error_code"),
-                        }
-                    ),
-                    file=sys.stderr,
-                    flush=True,
+                logger.info(
+                    "%s call for %s: %s (%s)",
+                    role,
+                    job.get("document_id"),
+                    job["status"],
+                    job.get("error_code") or "no error",
                 )
 
         if pending:

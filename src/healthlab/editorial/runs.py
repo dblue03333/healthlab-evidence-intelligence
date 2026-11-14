@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import logging
 from pathlib import Path
 
 from healthlab.common import decode_model_json
@@ -20,6 +21,8 @@ from healthlab.editorial.contracts import (
 from healthlab.editorial.dates import DATE_POLICY_VERSIONS
 from healthlab.editorial.passages import POLICY as PASSAGE_POLICY
 from healthlab.store import json_bytes
+
+logger = logging.getLogger(__name__)
 
 # Bind every module in the editorial workflow and its versioned dependencies.
 _RUNTIME_FILES = (
@@ -167,7 +170,14 @@ def adopt_previous(store, run_id, parent_id, *, probes=()):
                     raw = resolve_reference_ids(raw, row, version=run["version"])
                 result = canonical_proposal(raw, row, run["question"], version=run["version"])
                 reused[old["document_id"]] = (old, result, route)
-            except Exception:
+            except Exception as exc:
+                # Any decode or validation failure leaves the job to run again.
+                # Log only the type: validation messages can quote model or source text.
+                logger.debug(
+                    "Previous answer for %s not adopted: %s",
+                    old.get("document_id"),
+                    type(exc).__name__,
+                )
                 continue  # Retain original failure; never guess missing content.
         current = jobs(store, run)
         # Only an undispatched classification can take a reused result; a job that

@@ -5,11 +5,12 @@ Operational readiness is separate from immutable Gold and editorial acceptance.
 
 import argparse
 import json
-import sys
+import logging
 import uuid
 from html import escape
 from pathlib import Path
 
+from healthlab.common import configure_logging
 from healthlab.data.datasets import gold_records, read_dataset
 from healthlab.data.incidents import (
     digest,
@@ -22,6 +23,8 @@ from healthlab.data.incidents import (
 from healthlab.models import IngestionError
 from healthlab.signal.contracts import Registry
 from healthlab.store import RunStore
+
+logger = logging.getLogger(__name__)
 
 VERSION = "healthlab-supervision-1"
 
@@ -282,6 +285,7 @@ def report_html(store, result=None):
 
 
 def main(argv=None):
+    configure_logging()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--store", type=Path, default=Path("outputs/data_20261026"))
     commands = parser.add_subparsers(dest="command", required=True)
@@ -335,7 +339,7 @@ def main(argv=None):
                 }
             )
         )
-        print(str(exc), file=sys.stderr)
+        logger.error("Supervision failed: %s", exc)
         return 1
 
 

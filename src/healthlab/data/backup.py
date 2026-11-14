@@ -10,6 +10,7 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
+from healthlab.common import configure_logging
 from healthlab.data.datasets import build_dataset, read_dataset
 from healthlab.data.pilot import runner_lock
 from healthlab.data.power import awake_for_cli
@@ -176,6 +177,7 @@ def create_snapshot(store, parent, *, project=None, require_independent=True):
 
 
 def main(argv=None):
+    configure_logging()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--store", type=Path, default=Path("outputs/data_20261026"))
     parser.add_argument("--parent", type=Path)

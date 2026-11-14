@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import logging
 
 from healthlab.common import decode_model_json
 from healthlab.data.pilot import runner_lock
@@ -12,6 +13,8 @@ from healthlab.editorial.review_policy import ContextReview, ai_review_required,
 from healthlab.editorial.runs import allocated_calls, jobs, load
 from healthlab.editorial.scope import validate_scope
 from healthlab.store import json_bytes
+
+logger = logging.getLogger(__name__)
 
 
 def plan_review(store, run_id, *, excluded_sample=16, all_articles=False):
@@ -234,5 +237,8 @@ def _adoptable(store, run, row, job, old):
         if run["version"] in CONTEXT_CONTRACTS:
             ContextReview.model_validate(payload)
         return validate_review(payload, proposal, [u["passage_id"] for u in units], run["question"])
-    except Exception:
+    except Exception as exc:
+        # Any decode or validation failure means the old answer cannot be reused as is.
+        # Log only the type: validation messages can quote model or source text.
+        logger.debug("Recorded %s answer not reusable: %s", job["role"], type(exc).__name__)
         return None  # Keep the call unresolved rather than guess.

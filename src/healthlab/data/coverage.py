@@ -13,6 +13,7 @@ from datetime import date
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
+from healthlab.common import configure_logging
 from healthlab.data.datasets import read_dataset
 from healthlab.signal.contracts import Registry
 from healthlab.store import RunStore
@@ -146,6 +147,7 @@ def compare(store, dataset_id, reference_path):
 
 
 def main(argv=None):
+    configure_logging()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--store", type=Path, required=True)
     parser.add_argument("--dataset", required=True)

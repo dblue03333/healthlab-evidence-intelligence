@@ -44,7 +44,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from pydantic import Field
 
-from healthlab.common import utc_now, write_text_atomic
+from healthlab.common import configure_logging, utc_now, write_text_atomic
 from healthlab.data.datasets import read_dataset
 from healthlab.data.pilot import runner_lock
 from healthlab.editorial.contracts import EditorialDraft
@@ -926,6 +926,7 @@ def send_gmail(store, issue_id, sender, recipients, app_password, *, smtp_factor
 
 def main(argv=None):
     load_dotenv()
+    configure_logging()
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--store", type=Path, required=True)
     parser.add_argument("--source-store", type=Path, required=True)

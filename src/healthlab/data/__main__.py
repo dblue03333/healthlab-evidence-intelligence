@@ -2,10 +2,11 @@
 
 import argparse
 import json
-import sys
+import logging
 from datetime import date
 from pathlib import Path
 
+from healthlab.common import configure_logging
 from healthlab.data.bundle import export_dataset, verify_export
 from healthlab.data.datasets import build_dataset, read_dataset, summary
 from healthlab.data.supervision import record_operation_failure, supervise
@@ -20,6 +21,8 @@ from healthlab.signal.contracts import Registry
 from healthlab.signal.source_http import FetchPolicy
 from healthlab.signal.storage import collection_storage
 from healthlab.store import RunStore
+
+logger = logging.getLogger(__name__)
 
 
 def _main(argv=None):
@@ -65,11 +68,7 @@ def _main(argv=None):
                 store = RunStore(args.store)
 
             def started(run_id):
-                print(
-                    json.dumps({"collection_id": run_id, "status": "running"}),
-                    file=sys.stderr,
-                    flush=True,
-                )
+                logger.info("Collection %s is running", run_id)
 
             if args.command == "collect":
                 registry = Registry.model_validate_json(args.registry.read_bytes())
@@ -152,14 +151,9 @@ def _main(argv=None):
             try:
                 incident_ref = record_operation_failure(RunStore(args.store), args.command, exc)
             except Exception as incident_exc:
-                print(
-                    json.dumps(
-                        {
-                            "error_code": "incident_persistence_failed",
-                            "type": type(incident_exc).__name__,
-                        }
-                    ),
-                    file=sys.stderr,
+                logger.error(
+                    "incident_persistence_failed: could not record the incident (%s)",
+                    type(incident_exc).__name__,
                 )
         print(
             json.dumps(
@@ -179,6 +173,7 @@ def _main(argv=None):
 def main(argv=None):
     from healthlab.data.power import awake_for_cli
 
+    configure_logging()
     with awake_for_cli():
         return _main(argv)
 

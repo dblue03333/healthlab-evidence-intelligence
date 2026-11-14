@@ -24,7 +24,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from healthlab.common import decode_model_json, utc_now
+from healthlab.common import configure_logging, decode_model_json, utc_now
 from healthlab.config import FPTSettings
 from healthlab.data.pilot import runner_lock
 from healthlab.editorial.contracts import passage_inputs
@@ -176,6 +176,7 @@ def summary(store, run_id):
 
 def main(argv=None):
     load_dotenv()
+    configure_logging()
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--store", type=Path, required=True)
     commands = parser.add_subparsers(dest="command", required=True)

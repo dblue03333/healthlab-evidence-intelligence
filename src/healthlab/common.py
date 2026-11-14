@@ -1,12 +1,43 @@
 """Small helpers shared by collection, data and editorial code."""
 
 import json
+import logging
 import os
+import sys
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
 from healthlab.models import IngestionError
+
+
+class _CurrentStderrHandler(logging.StreamHandler):
+    """Write to whatever sys.stderr is at emit time, so later redirection still works."""
+
+    def __init__(self):
+        super().__init__(sys.stderr)
+
+    @property
+    def stream(self):
+        return sys.stderr
+
+    @stream.setter
+    def stream(self, _value):
+        pass  # Always follow sys.stderr; StreamHandler.__init__ assigns a fixed stream.
+
+
+def configure_logging():
+    """Send healthlab diagnostics to stderr; stdout stays reserved for each command's JSON result.
+
+    The level comes from HEALTHLAB_LOG_LEVEL (default INFO). Calling it again only updates the level.
+    """
+    level = os.environ.get("HEALTHLAB_LOG_LEVEL", "INFO").strip().upper() or "INFO"
+    logger = logging.getLogger("healthlab")
+    logger.setLevel(level)
+    if not any(isinstance(h, _CurrentStderrHandler) for h in logger.handlers):
+        handler = _CurrentStderrHandler()
+        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+        logger.addHandler(handler)
 
 
 def utc_now():

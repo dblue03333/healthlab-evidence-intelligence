@@ -4,9 +4,9 @@ import argparse
 import fcntl
 import hashlib
 import json
+import logging
 import os
 import re
-import sys
 import tempfile
 import uuid
 from contextlib import contextmanager
@@ -15,6 +15,7 @@ from html import escape
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from healthlab.common import configure_logging
 from healthlab.data.bundle import export_dataset, verify_export
 from healthlab.data.datasets import build_dataset, read_dataset, summary
 from healthlab.data.power import awake_for_cli
@@ -32,6 +33,8 @@ from healthlab.signal.history import source_scope
 from healthlab.signal.html_adapter import PARSER_VERSION
 from healthlab.signal.storage import atomic_json, collection_storage
 from healthlab.store import RunStore, json_bytes, sync_directory
+
+logger = logging.getLogger(__name__)
 
 VERSION = "data-pilot-1"
 TIMEZONE = "Asia/Ho_Chi_Minh"
@@ -547,15 +550,9 @@ def run_pilot(
             except Exception as incident_exc:
                 # Disk/ledger failure must never silently imply that an incident
                 # was persisted, or replace the original collection exception.
-                print(
-                    json.dumps(
-                        {
-                            "error_code": "incident_persistence_failed",
-                            "type": type(incident_exc).__name__,
-                        }
-                    ),
-                    file=sys.stderr,
-                    flush=True,
+                logger.error(
+                    "incident_persistence_failed: could not record the incident (%s)",
+                    type(incident_exc).__name__,
                 )
             raise
 
@@ -584,11 +581,7 @@ def _main(argv=None):
             fresh=args.fresh,
             repair_once=not args.no_repair,
             repair_from=args.repair_from,
-            on_started=lambda run_id: print(
-                json.dumps({"collection_id": run_id, "status": "running"}),
-                file=sys.stderr,
-                flush=True,
-            ),
+            on_started=lambda run_id: logger.info("Collection %s is running", run_id),
         )
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0 if result["status"] == "ready" and result["supervision"]["gate"] == "ready" else 1
@@ -604,14 +597,9 @@ def _main(argv=None):
                     context={"as_of": str(args.as_of), "days": args.days},
                 )
             except Exception as incident_exc:
-                print(
-                    json.dumps(
-                        {
-                            "error_code": "incident_persistence_failed",
-                            "type": type(incident_exc).__name__,
-                        }
-                    ),
-                    file=sys.stderr,
+                logger.error(
+                    "incident_persistence_failed: could not record the incident (%s)",
+                    type(incident_exc).__name__,
                 )
         print(
             json.dumps(
@@ -628,6 +616,7 @@ def _main(argv=None):
 
 
 def main(argv=None):
+    configure_logging()
     with awake_for_cli():
         return _main(argv)
 

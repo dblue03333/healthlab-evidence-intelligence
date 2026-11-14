@@ -8,6 +8,7 @@ import argparse
 import json
 from pathlib import Path
 
+from healthlab.common import configure_logging
 from healthlab.config import FPTSettings
 from healthlab.data.power import awake_for_cli
 from healthlab.editorial.inference import run_calls
@@ -19,6 +20,7 @@ from healthlab.store import RunStore
 
 
 def main(argv=None):
+    configure_logging()
     parser = argparse.ArgumentParser(prog="python -m healthlab.editorial", description=__doc__)
     parser.add_argument("--store", type=Path, default=Path("outputs/editorial_20261029"))
     parser.add_argument(
