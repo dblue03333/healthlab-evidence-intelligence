@@ -13,12 +13,12 @@ import pytest
 from pydantic import ValidationError
 
 from healthlab import editorial as ed
-from healthlab.editorial_context import (
+from healthlab.editorial.context import (
     MAX_CONTEXT_CHARS,
     date_is_range_endpoint,
     rationale_date_conflict,
 )
-from healthlab.editorial_review_policy import fact_date_checks, review_gate, validate_review
+from healthlab.editorial.review_policy import fact_date_checks, review_gate, validate_review
 from tests.conftest import REVIEW_RUNTIME
 from tests.test_editorial import WINDOW, row, scope_assessment, setup_run
 from tests.test_editorial_context import IDS, TEXT, assessment, bind, context, raw, review
@@ -386,7 +386,7 @@ def test_native_run_repairs_instead_of_failing_and_packet_keeps_the_record(tmp_p
 def test_decomposed_source_text_still_matches_a_composed_quote():
     import unicodedata
 
-    from healthlab.editorial_context import _folded_matches
+    from healthlab.editorial.context import _folded_matches
 
     text = unicodedata.normalize("NFD", "Chăm sóc người cao tuổi tại nhà.")
     quote = unicodedata.normalize("NFC", "người cao tuổi")

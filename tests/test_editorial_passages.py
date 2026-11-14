@@ -6,9 +6,8 @@ from types import SimpleNamespace
 import pytest
 
 from healthlab import editorial as ed
-from healthlab.editorial_passages import MAX_PASSAGE_CHARS, editorial_passages
-from healthlab.editorial_scope import scope_gate, validate_scope
-from healthlab.signal.triage import source_passages
+from healthlab.editorial.passages import MAX_PASSAGE_CHARS, editorial_passages, source_passages
+from healthlab.editorial.scope import scope_gate, validate_scope
 from tests.editorial_legacy import canonical_v12, resolve_v12
 from tests.test_editorial import WINDOW, row, scope_assessment, setup_run
 from tests.test_editorial_review_policy import review

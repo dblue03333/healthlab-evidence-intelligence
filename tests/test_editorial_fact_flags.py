@@ -11,8 +11,8 @@ from types import SimpleNamespace
 import pytest
 
 from healthlab import editorial as ed
-from healthlab.editorial_issue import _draft_body
-from healthlab.editorial_review_policy import RELEASE_POLICY, review_gate
+from healthlab.editorial.issue import _draft_body
+from healthlab.editorial.review_policy import RELEASE_POLICY, review_gate
 from tests.test_editorial import WINDOW, row
 from tests.test_editorial_context import IDS, NULL_CONTEXT, TEXT, assessment, context, raw, review
 

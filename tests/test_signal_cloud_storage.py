@@ -83,7 +83,7 @@ def test_cloud_cli_does_not_fall_back_to_local_or_expose_dsn(tmp_path, monkeypat
     output = capsys.readouterr().out
     assert '"error_code": "cloud_configuration"' in output
     assert "postgresql://" not in output
-    assert main(["--storage-config", str(config), "draft", "0" * 32, "--triage-run", "0" * 32]) == 1
+    assert main(["--storage-config", str(config), "check-config"]) == 1
     assert '"error_code": "configuration_or_io"' in capsys.readouterr().out
 
 

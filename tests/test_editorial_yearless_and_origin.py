@@ -2,14 +2,14 @@
 
 import pytest
 
-from healthlab.editorial_dates import (
+from healthlab.editorial.dates import (
     DATE_POLICY,
     INFERRED_YEAR_BASIS,
     editorial_literal_dates,
     resolve_yearless_dates,
 )
-from healthlab.editorial_origin import footer_attributions
-from healthlab.editorial_review_policy import fact_date_supported
+from healthlab.editorial.origin import footer_attributions
+from healthlab.editorial.review_policy import fact_date_supported
 
 
 def resolved(text, published):
@@ -87,4 +87,4 @@ def test_footer_attributions(body, expected):
 def test_origin_policy_is_part_of_the_runtime_fingerprint():
     from healthlab.editorial.runs import _RUNTIME_FILES
 
-    assert "editorial_origin.py" in _RUNTIME_FILES
+    assert "editorial/origin.py" in _RUNTIME_FILES

@@ -200,7 +200,7 @@ def rationale_date_conflict(rationale, iso_date):
 
 def date_is_range_endpoint(text, iso_date, *, policy=None):
     """True when the literal date starts or ends a range such as an anniversary period."""
-    from healthlab.editorial_dates import editorial_literal_dates, is_range_endpoint
+    from healthlab.editorial.dates import editorial_literal_dates, is_range_endpoint
 
     return any(
         found["date"] == iso_date and is_range_endpoint(text, found)

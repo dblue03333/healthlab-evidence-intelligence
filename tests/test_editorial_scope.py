@@ -5,7 +5,7 @@ import json
 import pytest
 
 from healthlab import editorial as ed
-from healthlab.editorial_scope import scope_gate, validate_scope
+from healthlab.editorial.scope import scope_gate, validate_scope
 from tests.editorial_legacy import resolve_v12
 from tests.test_editorial import WINDOW, linked_proposal, proposal, row, scope_assessment, setup_run
 from tests.test_editorial_review_policy import review

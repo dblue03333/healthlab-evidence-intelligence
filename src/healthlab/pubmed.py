@@ -9,14 +9,11 @@ from urllib.parse import quote, quote_plus
 
 import httpx
 
+from healthlab.common import utc_now
 from healthlab.config import Settings
 from healthlab.models import AbstractSection, Document, IngestionError
 
 BASE_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
-
-
-def utc_now():
-    return datetime.now(UTC).isoformat()
 
 
 def parse_search(raw: bytes) -> dict:

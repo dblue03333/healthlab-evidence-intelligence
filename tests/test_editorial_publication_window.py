@@ -11,11 +11,11 @@ from types import SimpleNamespace
 import pytest
 
 from healthlab import editorial as ed
-from healthlab import editorial_issue as issue_mod
 from healthlab.data.contracts import Gold, Window
+from healthlab.editorial import issue as issue_mod
 from healthlab.editorial import runs as editorial_runs
 from healthlab.editorial.prompts import PUBLICATION_WINDOW_DRAFT
-from healthlab.editorial_review_policy import (
+from healthlab.editorial.review_policy import (
     PUBLICATION_WINDOW_POLICY,
     RELATIVE_TIME_WORDS,
     TOPIC_ONLY_POLICY,

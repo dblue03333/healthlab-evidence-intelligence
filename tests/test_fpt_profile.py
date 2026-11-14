@@ -10,7 +10,6 @@ from pydantic import ValidationError
 from healthlab import editorial as ed
 from healthlab.config import FPTSettings
 from healthlab.editorial import cli as editorial_cli
-from healthlab.extraction import cache_identity
 from healthlab.models import IngestionError
 from healthlab.provider import FPTProvider
 
@@ -49,17 +48,6 @@ def test_configured_request_mode_matches_wire_audit_and_identity(mode, method):
         json.dumps(provider.identity()) + json.dumps(events[0][0]) + events[0][1].decode()
     )
     client.close()
-
-
-def test_request_modes_and_old_adapter_have_distinct_cache_identity():
-    identities = []
-    for mode in ("disabled", "enabled", "provider_default"):
-        p = FPTProvider(FPTSettings(_env_file=None, thinking_mode=mode), cache_only=True)
-        identities.append(p.identity())
-    old = dict(identities[0], adapter_version="fpt-chat-1")
-    old.pop("request_options")
-    keys = [cache_identity("snapshot", [], x)[0] for x in [old, *identities]]
-    assert len(set(keys)) == 4
 
 
 def test_default_env_validation_and_cli_override(monkeypatch, tmp_path, capsys):

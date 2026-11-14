@@ -8,8 +8,8 @@ import tempfile
 import uuid
 from pathlib import Path
 
+from healthlab.common import utc_now
 from healthlab.models import MANIFEST_VERSION, PARSER_VERSION, IngestionError
-from healthlab.pubmed import utc_now
 
 
 def json_bytes(value):

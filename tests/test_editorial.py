@@ -415,7 +415,7 @@ def test_live_contract_cannot_silently_omit_date_context_fields(missing):
 
 
 def test_linked_event_date_requires_source_identity_and_review_confirmation():
-    from healthlab.editorial_review_policy import review_gate
+    from healthlab.editorial.review_policy import review_gate
     from tests.test_editorial_review_policy import review
 
     article, payload = linked_proposal()

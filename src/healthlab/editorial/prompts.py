@@ -12,9 +12,9 @@ from healthlab.editorial.contracts import (
     passage_inputs,
     passage_policy,
 )
-from healthlab.editorial_dates import DATE_POLICY_VERSIONS
-from healthlab.editorial_passages import POLICY as PASSAGE_POLICY
-from healthlab.editorial_review_policy import (
+from healthlab.editorial.dates import DATE_POLICY_VERSIONS
+from healthlab.editorial.passages import POLICY as PASSAGE_POLICY
+from healthlab.editorial.review_policy import (
     PUBLICATION_WINDOW_VERSIONS,
     RELATIVE_TIME_WORDS,
     CitationReview,
@@ -22,8 +22,8 @@ from healthlab.editorial_review_policy import (
     SemanticReview,
     fact_date_checks,
 )
-from healthlab.editorial_scope import INSTRUCTION as SCOPE_INSTRUCTION
-from healthlab.editorial_scope import ScopeAssessment
+from healthlab.editorial.scope import INSTRUCTION as SCOPE_INSTRUCTION
+from healthlab.editorial.scope import ScopeAssessment
 
 RUBRIC = """Read the ENTIRE supplied article, never select using keywords or title alone.
 Topics: aging_society = ageing populations and social/health systems adapting to older people,

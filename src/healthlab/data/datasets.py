@@ -5,6 +5,7 @@ import json
 from collections import Counter
 from urllib.parse import parse_qs, urlsplit
 
+from healthlab.common import utc_now
 from healthlab.data.contracts import (
     Bronze,
     Dataset,
@@ -16,7 +17,6 @@ from healthlab.data.contracts import (
     Window,
 )
 from healthlab.models import IngestionError
-from healthlab.pubmed import utc_now
 from healthlab.signal.backup import object_references
 from healthlab.signal.collection import load_documents
 from healthlab.signal.contracts import Registry

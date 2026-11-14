@@ -5,7 +5,7 @@ import json
 import pytest
 
 from healthlab import editorial as ed
-from healthlab.editorial_review_policy import fact_date_checks, validate_review
+from healthlab.editorial.review_policy import fact_date_checks, validate_review
 from healthlab.store import json_bytes
 from tests import test_editorial as fixtures
 from tests.test_editorial import WINDOW, row, scope_assessment, setup_run

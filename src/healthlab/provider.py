@@ -8,9 +8,9 @@ from typing import Protocol
 
 import httpx
 
+from healthlab.common import utc_now
 from healthlab.config import FPTSettings
 from healthlab.models import IngestionError
-from healthlab.pubmed import utc_now
 
 Audit = Callable[[dict, bytes | None], None]
 

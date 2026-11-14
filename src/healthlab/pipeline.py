@@ -4,8 +4,9 @@ import json
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+from healthlab.common import utc_now
 from healthlab.models import PARSER_VERSION, IngestionError, Question
-from healthlab.pubmed import parse_records, parse_search, utc_now
+from healthlab.pubmed import parse_records, parse_search
 from healthlab.store import RunStore, json_bytes
 
 

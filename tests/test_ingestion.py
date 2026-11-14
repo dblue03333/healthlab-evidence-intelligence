@@ -6,7 +6,6 @@ import httpx
 import pytest
 from pydantic import ValidationError
 
-from healthlab.__main__ import main
 from healthlab.config import Settings
 from healthlab.models import IngestionError, Question
 from healthlab.pipeline import import_probe, ingest, replay
@@ -108,7 +107,6 @@ def test_online_replay_dedup_and_immutable_parent(tmp_path, monkeypatch):
     assert replayed["status"] == "completed" and replayed["documents"] == run["documents"]
     assert replayed["requests"] == [] and replayed["parent_run_id"] == run["run_id"]
     assert (tmp_path / "runs" / run["run_id"] / "manifest.json").read_bytes() == original_manifest
-    assert main(["--store", str(tmp_path), "replay", run["run_id"]]) == 0
 
 
 def test_changed_content_creates_new_snapshot(tmp_path):
@@ -406,13 +404,6 @@ def test_settings_field_names_secrets_and_env_aliases(tmp_path, monkeypatch):
     assert s.email == "dev@healthlab.test" and s.api_key.get_secret_value() == "explicit"
     assert "explicit" not in repr(s)
     assert Settings(_env_file=None).api_key.get_secret_value() == "from-env"
-
-
-def test_placeholder_email_does_not_block_offline_cli(tmp_path, monkeypatch):
-    c, _ = connector(normal_handler)
-    run = ingest(RunStore(tmp_path), Question(raw_question="q", query="q"), c)
-    monkeypatch.setenv("NCBI_EMAIL", "your_email@example.com")
-    assert main(["--store", str(tmp_path), "replay", run["run_id"]]) == 0
 
 
 def test_api_key_is_unwrapped_only_on_wire(tmp_path):
