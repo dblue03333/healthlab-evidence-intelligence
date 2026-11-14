@@ -173,7 +173,9 @@ def issue(tmp_path, monkeypatch, text):
     ed.run_calls(store, run["run_id"], provider, role="scope", workers=1)
     ed.plan_draft(store, run["run_id"])
     ed.run_calls(store, run["run_id"], provider, role="draft", workers=1)
-    gold = Gold(silver_sha256="a" * 64, window=Window(**WINDOW), status="ready", document_ids=["id"])
+    gold = Gold(
+        silver_sha256="a" * 64, window=Window(**WINDOW), status="ready", document_ids=["id"]
+    )
     source = SimpleNamespace(
         source_id="moh_portal",
         organization="Bộ Y tế",
@@ -185,7 +187,12 @@ def issue(tmp_path, monkeypatch, text):
     monkeypatch.setattr(
         issue_mod,
         "read_dataset",
-        lambda *a: (None, None, SimpleNamespace(sources=[source]), SimpleNamespace(**gold.__dict__)),
+        lambda *a: (
+            None,
+            None,
+            SimpleNamespace(sources=[source]),
+            SimpleNamespace(**gold.__dict__),
+        ),
     )
     monkeypatch.setattr(editorial_runs, "supervised_records", lambda *a: [row()])
     return store, issue_mod.create_issue(store, RunStore(tmp_path / "source"), run["run_id"])
@@ -231,6 +238,6 @@ def test_relative_time_words_block_approval_until_revised(tmp_path, monkeypatch)
 def test_v18_issues_are_not_checked_for_time_words():
     evidence = {"E1": dict(evidence_id="E1", url="https://example.org/a", title="t", quote=BODY)}
     assert not issue_mod._time_dated(evidence)
-    assert issue_mod.time_word_findings(ed.EditorialDraft.model_validate(draft("Hiện nay có."))) == [
-        ("Mục «Chăm sóc tại nhà»", "Hiện nay")
-    ]
+    assert issue_mod.time_word_findings(
+        ed.EditorialDraft.model_validate(draft("Hiện nay có."))
+    ) == [("Mục «Chăm sóc tại nhà»", "Hiện nay")]
