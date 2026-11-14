@@ -92,14 +92,14 @@ def _observation(storage, source, check, checkpoint, reference, documents, windo
     newsletter = window.basis == "configured_source_calendar_date"
     selection = {}
     if newsletter:
-        selection = dict(
-            selection_date=check.get("selection_date")
+        selection = {
+            "selection_date": check.get("selection_date")
             if displayed
             else check.get("publication_date"),
-            selection_date_basis=check.get("selection_date_basis", "listing_displayed")
+            "selection_date_basis": check.get("selection_date_basis", "listing_displayed")
             if displayed
             else "publication",
-            selection_date_evidence=[
+            "selection_date_evidence": [
                 dict(e, raw_sha256=e.get("raw_sha256") or raw)
                 for e in (
                     parsed.get("selection_date_evidence", [])
@@ -108,7 +108,7 @@ def _observation(storage, source, check, checkpoint, reference, documents, windo
             ]
             if displayed
             else evidence,
-        )
+        }
     record = (NewsletterObservation if newsletter else Observation)(
         **selection,
         document_id=document_identity(source, check["url"]),

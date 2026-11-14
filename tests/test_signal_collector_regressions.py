@@ -273,12 +273,12 @@ def test_default_media_policy_preserves_legacy_checkpoint_identity():
     old_config.pop("html_media_policy")
     before = hashlib.sha256(
         json_bytes(
-            dict(
-                source=old_config,
-                mindate="2026-10-03",
-                maxdate="2026-10-10",
-                parser_version=PARSER_VERSION,
-            )
+            {
+                "source": old_config,
+                "mindate": "2026-10-03",
+                "maxdate": "2026-10-10",
+                "parser_version": PARSER_VERSION,
+            }
         )
     ).hexdigest()
     assert checkpoint_identity(config, date(2026, 10, 3), date(2026, 10, 10)) == before

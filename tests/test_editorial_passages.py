@@ -81,26 +81,26 @@ def test_unicode_and_bounded_passages_retain_all_nonspace_source_text(text):
 
 
 def reference_payload(article, *, passage_id="P1", date_id="D1", rationale=None):
-    return dict(
-        relevance="relevant",
-        topics=["aging_society"],
-        jurisdiction="vietnam",
-        content_kind="new_development",
-        source_role="original",
-        summary="Hội nghị chăm sóc người cao tuổi.",
-        rationale="Nguồn nêu sự kiện chăm sóc người cao tuổi.",
-        relevance_passage_id=passage_id,
-        facts=[
-            dict(
-                statement="Theo nguồn, hội nghị được tổ chức ngày 05/11/2026 tại TP. Hồ Chí Minh.",
-                passage_id=passage_id,
-                event_date_candidate_id=date_id,
-                date_link_rationale=rationale,
-                reported_status="announced",
-            )
+    return {
+        "relevance": "relevant",
+        "topics": ["aging_society"],
+        "jurisdiction": "vietnam",
+        "content_kind": "new_development",
+        "source_role": "original",
+        "summary": "Hội nghị chăm sóc người cao tuổi.",
+        "rationale": "Nguồn nêu sự kiện chăm sóc người cao tuổi.",
+        "relevance_passage_id": passage_id,
+        "facts": [
+            {
+                "statement": "Theo nguồn, hội nghị được tổ chức ngày 05/11/2026 tại TP. Hồ Chí Minh.",
+                "passage_id": passage_id,
+                "event_date_candidate_id": date_id,
+                "date_link_rationale": rationale,
+                "reported_status": "announced",
+            }
         ],
-        uncertainties=[],
-    )
+        "uncertainties": [],
+    }
 
 
 def test_city_case_no_longer_needs_a_cross_passage_date_link():

@@ -193,13 +193,13 @@ def _near_misses(packet, exclude=()):
         # "Not a candidate" verdicts are consequences; show them only without a root cause.
         reasons = [r for r in reasons if r not in DERIVED_REASONS] or reasons
         misses.append(
-            dict(
-                document_id=a["document_id"],
-                title=a["title"],
-                url=a["url"],
-                reasons=reasons,
-                facts=a["proposal"].get("resolved_facts") or [],
-            )
+            {
+                "document_id": a["document_id"],
+                "title": a["title"],
+                "url": a["url"],
+                "reasons": reasons,
+                "facts": a["proposal"].get("resolved_facts") or [],
+            }
         )
     return misses
 
@@ -246,16 +246,16 @@ def create_issue(store, source_store, run_id):
         draft = IssueDraft.model_validate_json(store.read(job["result_sha256"]))
         evidence = json.loads(store.read(job["evidence_sha256"]))
         _check(draft, evidence, records)
-        pinned = dict(
-            kind="draft",
-            draft_job_id=job["run_id"],
-            original_draft_sha256=job["result_sha256"],
-            evidence_sha256=job["evidence_sha256"],
-            issue_sha256=job["result_sha256"],
-        )
+        pinned = {
+            "kind": "draft",
+            "draft_job_id": job["run_id"],
+            "original_draft_sha256": job["result_sha256"],
+            "evidence_sha256": job["evidence_sha256"],
+            "issue_sha256": job["result_sha256"],
+        }
     else:
         digest = store.put(json_bytes(_no_release_digest(store, run, records, calls)))
-        pinned = dict(kind=NO_RELEASE, issue_sha256=digest)
+        pinned = {"kind": NO_RELEASE, "issue_sha256": digest}
     dataset_status, sources = _sources(source_store, run["dataset_id"])
     issue = store.new(MODE, run["question"])
     issue.update(
@@ -379,11 +379,11 @@ def promote(
                 )
             )
             content["side_news"].append(
-                dict(
-                    text=f["statement"],
-                    reported_status=f["reported_status"],
-                    evidence_ids=[f"S{n}"],
-                )
+                {
+                    "text": f["statement"],
+                    "reported_status": f["reported_status"],
+                    "evidence_ids": [f"S{n}"],
+                }
             )
         new = IssueDraft.model_validate(content)
         _check(new, evidence, records)
@@ -431,24 +431,24 @@ def _promote_recalled(store, issue_id, document_id, text, status, *, expected_ve
         for n, p in enumerate(passages, side + 1):
             ids.append(f"S{n}")
             evidence.append(
-                dict(
-                    evidence_id=f"S{n}",
-                    document_id=document_id,
-                    snapshot_id=row["snapshot_id"],
-                    url=row["url"],
-                    title=row["title"],
-                    raw_sha256=row["raw_sha256"],
-                    passage_id=p["passage_id"],
-                    start=p["start"],
-                    end=p["end"],
-                    quote=p["quote"],
-                    publication_date=row.get("publication_date"),
-                    time_basis=basis,
-                    recall_check_id=recall["recall_check_id"],
-                )
+                {
+                    "evidence_id": f"S{n}",
+                    "document_id": document_id,
+                    "snapshot_id": row["snapshot_id"],
+                    "url": row["url"],
+                    "title": row["title"],
+                    "raw_sha256": row["raw_sha256"],
+                    "passage_id": p["passage_id"],
+                    "start": p["start"],
+                    "end": p["end"],
+                    "quote": p["quote"],
+                    "publication_date": row.get("publication_date"),
+                    "time_basis": basis,
+                    "recall_check_id": recall["recall_check_id"],
+                }
             )
         content = draft.model_dump()
-        content["side_news"].append(dict(text=text, reported_status=status, evidence_ids=ids))
+        content["side_news"].append({"text": text, "reported_status": status, "evidence_ids": ids})
         new = IssueDraft.model_validate(content)
         _check(new, evidence, records)
         previous = issue["issue_sha256"]
@@ -480,16 +480,16 @@ def _recall_outcomes(store, issue, by_id):
     if recall is None:
         return None
     included = {e["document_id"] for e in (by_id or {}).values()}
-    return dict(
-        recall_check_id=recall["recall_check_id"],
-        model=recall["model"],
-        completed=recall["completed"],
-        targets=recall["targets"],
-        flags=[
-            dict(document_id=f["document_id"], included=f["document_id"] in included)
+    return {
+        "recall_check_id": recall["recall_check_id"],
+        "model": recall["model"],
+        "completed": recall["completed"],
+        "targets": recall["targets"],
+        "flags": [
+            {"document_id": f["document_id"], "included": f["document_id"] in included}
             for f in recall["flags"]
         ],
-    )
+    }
 
 
 def approve(store, issue_id, *, expected_version, reviewer, rationale):

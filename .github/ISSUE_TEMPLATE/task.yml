@@ -1,0 +1,60 @@
+name: Task
+description: Scoped engineering, data or editorial work with an acceptance bar
+title: ""
+body:
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective
+      description: What should this task achieve?
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Why is this work needed?
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: What is included, and what is explicitly left out?
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: What must be true before this is done?
+      placeholder: |
+        - [ ] Criterion 1
+        - [ ] Criterion 2
+    validations:
+      required: true
+
+  - type: textarea
+    id: authorization
+    attributes:
+      label: Live actions needed
+      description: >-
+        Live collection, model calls, writes to shared stores, scheduling, email or
+        publication this task needs the owner to authorize. Write "None" for offline work.
+    validations:
+      required: true
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: What blocks or depends on this work?
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: References, run IDs, contracts or other considerations.

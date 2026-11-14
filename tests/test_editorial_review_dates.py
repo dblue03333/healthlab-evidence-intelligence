@@ -14,28 +14,25 @@ pytestmark = pytest.mark.usefixtures("review_runtime")
 
 
 def semantic(**updates):
-    return (
-        dict(
-            review_version="editorial-review-4",
-            relevance="relevant",
-            topic_passage_ids=["P2"],
-            supported_fact_indexes=[0],
-            supported_date_fact_indexes=[],
-            blocking_findings=[],
-            audit_notes=[],
-            rationale="Nguồn hỗ trợ fact ở đúng trạng thái được thuật lại.",
-        )
-        | updates
-    )
+    return {
+        "review_version": "editorial-review-4",
+        "relevance": "relevant",
+        "topic_passage_ids": ["P2"],
+        "supported_fact_indexes": [0],
+        "supported_date_fact_indexes": [],
+        "blocking_findings": [],
+        "audit_notes": [],
+        "rationale": "Nguồn hỗ trợ fact ở đúng trạng thái được thuật lại.",
+    } | updates
 
 
 def finding(code):
-    return dict(
-        code=code,
-        explanation="Named unresolved evidence issue",
-        fact_indexes=[0],
-        passage_ids=["P1"],
-    )
+    return {
+        "code": code,
+        "explanation": "Named unresolved evidence issue",
+        "fact_indexes": [0],
+        "passage_ids": ["P1"],
+    }
 
 
 def candidate():

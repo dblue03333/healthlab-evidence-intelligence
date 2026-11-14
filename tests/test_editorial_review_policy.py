@@ -14,19 +14,16 @@ def review_gate(proposal_value, review_value, passage_ids):
 
 
 def review(**updates):
-    return (
-        dict(
-            review_version="editorial-review-2",
-            relevance="relevant",
-            newsletter_eligible=True,
-            topic_passage_ids=["P2"],
-            supported_fact_indexes=[0],
-            blocking_findings=[],
-            audit_notes=["Fact supported", "No outcome evaluation provided"],
-            rationale="Nguồn có đoạn hỗ trợ.",
-        )
-        | updates
-    )
+    return {
+        "review_version": "editorial-review-2",
+        "relevance": "relevant",
+        "newsletter_eligible": True,
+        "topic_passage_ids": ["P2"],
+        "supported_fact_indexes": [0],
+        "blocking_findings": [],
+        "audit_notes": ["Fact supported", "No outcome evaluation provided"],
+        "rationale": "Nguồn có đoạn hỗ trợ.",
+    } | updates
 
 
 def candidate():
@@ -41,12 +38,12 @@ def test_real_blocker_is_never_cleared_by_positive_notes():
     r = review(
         newsletter_eligible=False,
         blocking_findings=[
-            dict(
-                code="status_overstated",
-                explanation="Kế hoạch bị viết thành kết quả",
-                fact_indexes=[0],
-                passage_ids=["P1"],
-            )
+            {
+                "code": "status_overstated",
+                "explanation": "Kế hoạch bị viết thành kết quả",
+                "fact_indexes": [0],
+                "passage_ids": ["P1"],
+            }
         ],
     )
     gate = review_gate(candidate(), r, ["P1", "P2"])
@@ -55,13 +52,13 @@ def test_real_blocker_is_never_cleared_by_positive_notes():
 
 def test_legacy_free_text_is_not_guessed_even_if_it_says_no_issue():
     for issues in [[], ["No issue, fact fully supported"], ["Unsupported claim"]]:
-        r = dict(
-            relevance="relevant",
-            newsletter_eligible=True,
-            supported_fact_indexes=[0],
-            issues=issues,
-            rationale="Legacy",
-        )
+        r = {
+            "relevance": "relevant",
+            "newsletter_eligible": True,
+            "supported_fact_indexes": [0],
+            "issues": issues,
+            "rationale": "Legacy",
+        }
         assert review_gate(candidate(), r, ["P1", "P2"])["reasons"] == [
             "legacy_review_requires_explicit_assessment"
         ]
@@ -70,17 +67,22 @@ def test_legacy_free_text_is_not_guessed_even_if_it_says_no_issue():
 @pytest.mark.parametrize(
     "updates",
     [
-        dict(topic_passage_ids=["P999"]),
-        dict(supported_fact_indexes=[99]),
-        dict(supported_fact_indexes=[True]),
-        dict(supported_fact_indexes=[0, 0]),
-        dict(newsletter_eligible=True, relevance="irrelevant"),
-        dict(
-            newsletter_eligible=True,
-            blocking_findings=[
-                dict(code="other", explanation="Unresolved", fact_indexes=[], passage_ids=[])
+        {"topic_passage_ids": ["P999"]},
+        {"supported_fact_indexes": [99]},
+        {"supported_fact_indexes": [True]},
+        {"supported_fact_indexes": [0, 0]},
+        {"newsletter_eligible": True, "relevance": "irrelevant"},
+        {
+            "newsletter_eligible": True,
+            "blocking_findings": [
+                {
+                    "code": "other",
+                    "explanation": "Unresolved",
+                    "fact_indexes": [],
+                    "passage_ids": [],
+                }
             ],
-        ),
+        },
     ],
 )
 def test_invalid_review_cannot_release_evidence(updates):
@@ -150,12 +152,12 @@ def test_known_archive_is_readable_but_not_mutable_and_export_preserves_old_file
 def test_unsupported_dated_fact_cannot_release_only_undated_supported_facts():
     p = candidate()
     p["facts"].append(
-        dict(
-            statement="Undated",
-            quote="Hỗ trợ nhóm trên 65 tuổi tự sinh hoạt tại nhà.",
-            event_date=None,
-            reported_status="pilot",
-        )
+        {
+            "statement": "Undated",
+            "quote": "Hỗ trợ nhóm trên 65 tuổi tự sinh hoạt tại nhà.",
+            "event_date": None,
+            "reported_status": "pilot",
+        }
     )
     r = review(supported_fact_indexes=[1])
     assert "supported_in_window_development_missing" in review_gate(p, r, ["P1", "P2"])["reasons"]

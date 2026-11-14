@@ -294,7 +294,7 @@ def _collect_locked(
                     else None
                 )
 
-                def save_checkpoint(value):
+                def save_checkpoint(value, check=check):
                     check["checkpoint_sha256"] = store.put(json_bytes(value))
                     store.save(run)
 

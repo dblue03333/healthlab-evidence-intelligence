@@ -15,19 +15,19 @@ from healthlab.editorial import runs as editorial_runs
 from healthlab.store import RunStore
 from tests.test_editorial import WINDOW, proposal, row, scope_assessment, setup_run
 
-DRAFT = dict(
-    title="Thử nghiệm hỗ trợ phục hồi chức năng",
-    sections=[
-        dict(
-            title="Một chương trình thí điểm",
-            facts=[
-                dict(text="Chương trình thí điểm bắt đầu ngày 10/10/2026.", evidence_ids=["E1"])
+DRAFT = {
+    "title": "Thử nghiệm hỗ trợ phục hồi chức năng",
+    "sections": [
+        {
+            "title": "Một chương trình thí điểm",
+            "facts": [
+                {"text": "Chương trình thí điểm bắt đầu ngày 10/10/2026.", "evidence_ids": ["E1"]}
             ],
-            interpretation="Có thể theo dõi thêm.",
-            uncertainty="Chưa có dữ liệu hiệu quả.",
-        )
+            "interpretation": "Có thể theo dõi thêm.",
+            "uncertainty": "Chưa có dữ liệu hiệu quả.",
+        }
     ],
-)
+}
 HELD = "held"
 
 

@@ -45,10 +45,10 @@ DEFAULT_MODEL = "GLM-5.2"
 def recall_provider(model=None, client=None):
     """FPT with the recall model. Thinking is left to the provider, as in the model trial."""
     settings = FPTSettings().model_copy(
-        update=dict(
-            model=model or os.environ.get("HEALTHLAB_RECALL_MODEL") or DEFAULT_MODEL,
-            thinking_mode="provider_default",
-        )
+        update={
+            "model": model or os.environ.get("HEALTHLAB_RECALL_MODEL") or DEFAULT_MODEL,
+            "thinking_mode": "provider_default",
+        }
     )
     return FPTProvider(settings, client)
 
@@ -154,24 +154,24 @@ def summary(store, run_id):
         assessment = json.loads(store.read(result["assessment_sha256"]))
         row = records[document_id]
         flags.append(
-            dict(
-                document_id=document_id,
-                title=row["title"],
-                url=row["url"],
-                ageing_context=assessment["ageing_context"],
-                substantive_detail=assessment["substantive_detail"],
-                rationale=assessment["rationale"],
-                passages=assessment["source_passages"],
-            )
+            {
+                "document_id": document_id,
+                "title": row["title"],
+                "url": row["url"],
+                "ageing_context": assessment["ageing_context"],
+                "substantive_detail": assessment["substantive_detail"],
+                "rationale": assessment["rationale"],
+                "passages": assessment["source_passages"],
+            }
         )
-    return dict(
-        recall_check_id=record["run_id"],
-        model=record["provider"]["model"],
-        targets=len(record["targets"]),
-        completed=sum(r.get("status") == "completed" for r in results.values()),
-        failed=sum(r.get("status") == "failed" for r in results.values()),
-        flags=flags,
-    )
+    return {
+        "recall_check_id": record["run_id"],
+        "model": record["provider"]["model"],
+        "targets": len(record["targets"]),
+        "completed": sum(r.get("status") == "completed" for r in results.values()),
+        "failed": sum(r.get("status") == "failed" for r in results.values()),
+        "flags": flags,
+    }
 
 
 def main(argv=None):

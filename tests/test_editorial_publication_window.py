@@ -31,28 +31,28 @@ from tests.test_editorial import BODY, WINDOW, proposal, row, scope_assessment, 
 from tests.test_editorial_recovery import live_output
 
 UNDATED = "Hỗ trợ nhóm trên 65 tuổi tự sinh hoạt tại nhà."
-UNDATED_FACT = dict(
-    statement="Chương trình hỗ trợ nhóm trên 65 tuổi tự sinh hoạt tại nhà.",
-    quote=UNDATED,
-    event_date=None,
-    reported_status="operational",
-)
+UNDATED_FACT = {
+    "statement": "Chương trình hỗ trợ nhóm trên 65 tuổi tự sinh hoạt tại nhà.",
+    "quote": UNDATED,
+    "event_date": None,
+    "reported_status": "operational",
+}
 # The fixture article is published on 2026-10-11 and dated 2026-10-10 in its first passage.
 LATER = {"mindate": "2026-10-11", "maxdate": "2026-10-17"}
 
 
 def draft(text):
-    return dict(
-        title="Hỗ trợ sinh hoạt tại nhà cho người cao tuổi",
-        sections=[
-            dict(
-                title="Chăm sóc tại nhà",
-                facts=[dict(text=text, evidence_ids=["E1"])],
-                interpretation="Cần theo dõi cách chương trình được mở rộng.",
-                uncertainty="Nguồn chưa nêu kết quả.",
-            )
+    return {
+        "title": "Hỗ trợ sinh hoạt tại nhà cho người cao tuổi",
+        "sections": [
+            {
+                "title": "Chăm sóc tại nhà",
+                "facts": [{"text": text, "evidence_ids": ["E1"]}],
+                "interpretation": "Cần theo dõi cách chương trình được mở rộng.",
+                "uncertainty": "Nguồn chưa nêu kết quả.",
+            }
         ],
-    )
+    }
 
 
 def canonical(version=ed.VERSION, window=WINDOW, *, undated=False):
@@ -99,15 +99,15 @@ def test_undated_fact_in_an_article_published_in_the_period_is_current_news():
     assert p["facts"][0]["event_date"] is None and p["newsletter_candidate"]
     gate = topic_gate(p, WINDOW)
     assert gate["eligible"] and gate["release_policy"] == PUBLICATION_WINDOW_POLICY
-    assert gate["facts"][0] | {} == dict(
-        fact_index=0,
-        released=True,
-        drop_reasons=[],
-        flags=[],
-        in_window_date=False,
-        time_basis="publication_date",
-        current=True,
-    )
+    assert gate["facts"][0] | {} == {
+        "fact_index": 0,
+        "released": True,
+        "drop_reasons": [],
+        "flags": [],
+        "in_window_date": False,
+        "time_basis": "publication_date",
+        "current": True,
+    }
     # The same classification under v18 still needs a literal in-window event date.
     old = canonical(TOPIC_ONLY_RUNTIME, undated=True)
     assert not old["newsletter_candidate"]
@@ -131,7 +131,7 @@ def test_classify_and_scope_prompts_match_v18_so_its_results_can_be_adopted():
 
 
 def test_only_the_v19_draft_prompt_carries_the_time_basis_rules():
-    evidence = [dict(evidence_id="E1", quote=UNDATED)]
+    evidence = [{"evidence_id": "E1", "quote": UNDATED}]
     new, _ = ed.messages("draft", None, WINDOW, evidence=evidence, version=ed.VERSION)
     old, _ = ed.messages("draft", None, WINDOW, evidence=evidence, version=TOPIC_ONLY_RUNTIME)
     assert PUBLICATION_WINDOW_DRAFT in new[0]["content"]
@@ -236,7 +236,9 @@ def test_relative_time_words_block_approval_until_revised(tmp_path, monkeypatch)
 
 
 def test_v18_issues_are_not_checked_for_time_words():
-    evidence = {"E1": dict(evidence_id="E1", url="https://example.org/a", title="t", quote=BODY)}
+    evidence = {
+        "E1": {"evidence_id": "E1", "url": "https://example.org/a", "title": "t", "quote": BODY}
+    }
     assert not issue_mod._time_dated(evidence)
     assert issue_mod.time_word_findings(
         ed.EditorialDraft.model_validate(draft("Hiện nay có."))

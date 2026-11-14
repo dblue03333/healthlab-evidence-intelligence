@@ -47,7 +47,7 @@ class RunStore:
                 os.link(tmp, path)  # Atomic create; never overwrite a shared object.
             except FileExistsError:
                 if path.read_bytes() != content:
-                    raise IngestionError("cache_corrupt", "Concurrent object mismatch")
+                    raise IngestionError("cache_corrupt", "Concurrent object mismatch") from None
             sync_directory(path.parent)
         finally:
             os.unlink(tmp)

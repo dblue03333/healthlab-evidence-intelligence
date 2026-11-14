@@ -15,32 +15,32 @@ from tests.test_editorial import proposal, scope_assessment, setup_run
 pytestmark = pytest.mark.usefixtures("review_runtime")
 
 
-REVIEW = dict(
-    relevance="relevant",
-    newsletter_eligible=True,
-    supported_fact_indexes=[0],
-    review_version="editorial-review-2",
-    topic_passage_ids=["P2"],
-    blocking_findings=[],
-    audit_notes=[],
-    rationale="Đoạn trích hỗ trợ đúng mốc và trạng thái thí điểm.",
-)
-DRAFT = dict(
-    title="Thử nghiệm hỗ trợ phục hồi chức năng",
-    sections=[
-        dict(
-            title="Một chương trình thí điểm",
-            facts=[
-                dict(
-                    text="Nguồn báo cáo chương trình thí điểm bắt đầu ngày 10/10/2026.",
-                    evidence_ids=["E1"],
-                )
+REVIEW = {
+    "relevance": "relevant",
+    "newsletter_eligible": True,
+    "supported_fact_indexes": [0],
+    "review_version": "editorial-review-2",
+    "topic_passage_ids": ["P2"],
+    "blocking_findings": [],
+    "audit_notes": [],
+    "rationale": "Đoạn trích hỗ trợ đúng mốc và trạng thái thí điểm.",
+}
+DRAFT = {
+    "title": "Thử nghiệm hỗ trợ phục hồi chức năng",
+    "sections": [
+        {
+            "title": "Một chương trình thí điểm",
+            "facts": [
+                {
+                    "text": "Nguồn báo cáo chương trình thí điểm bắt đầu ngày 10/10/2026.",
+                    "evidence_ids": ["E1"],
+                }
             ],
-            interpretation="Có thể theo dõi thêm.",
-            uncertainty="Chưa có dữ liệu hiệu quả.",
-        )
+            "interpretation": "Có thể theo dõi thêm.",
+            "uncertainty": "Chưa có dữ liệu hiệu quả.",
+        }
     ],
-)
+}
 
 
 def drafted_run(tmp_path, monkeypatch):
@@ -71,14 +71,14 @@ def live_output():
         value,
         relevance_passage_id="P2",
         facts=[
-            dict(
-                statement=fact["statement"],
-                passage_id="P1",
-                supporting_passage_ids=[],
-                context=dict(actor=None, document=None, population=None, status=None),
-                date_link=dict(kind="same_passage", candidate_id="D1"),
-                reported_status=fact["reported_status"],
-            )
+            {
+                "statement": fact["statement"],
+                "passage_id": "P1",
+                "supporting_passage_ids": [],
+                "context": {"actor": None, "document": None, "population": None, "status": None},
+                "date_link": {"kind": "same_passage", "candidate_id": "D1"},
+                "reported_status": fact["reported_status"],
+            }
         ],
     )
 
