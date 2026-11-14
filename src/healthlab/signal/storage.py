@@ -8,9 +8,12 @@ import fcntl
 import json
 import os
 import tempfile
+from collections.abc import Iterator
 from contextlib import AbstractContextManager, contextmanager
-from typing import Protocol
+from pathlib import Path
+from typing import Any, Protocol
 
+from healthlab.common import JsonObject
 from healthlab.models import IngestionError
 from healthlab.store import RunStore, json_bytes, sync_directory
 
@@ -40,7 +43,7 @@ class CollectionState(Protocol):
         ...
 
 
-def atomic_json(path, value):
+def atomic_json(path: Path, value: JsonObject) -> None:
     fd, temporary = tempfile.mkstemp(dir=path.parent)
     try:
         with os.fdopen(fd, "wb") as handle:
@@ -61,20 +64,20 @@ class LocalCollectionState:
     before any collector or newsletter acquires that same lock.
     """
 
-    def __init__(self, store: RunStore):
+    def __init__(self, store: RunStore) -> None:
         self.store = store
         self.root = store.root
 
-    def new(self, mode, question):
+    def new(self, mode: str, question: dict[str, str]) -> JsonObject:
         return self.store.new(mode, question)
 
-    def load(self, run_id):
+    def load(self, run_id: str) -> JsonObject:
         return self.store.load(run_id)
 
-    def save(self, run):
+    def save(self, run: JsonObject) -> None:
         self.store.save(run)
 
-    def list_runs(self, mode):
+    def list_runs(self, mode: str) -> list[Any]:
         # Read atomic manifests, never infer completion from directory existence.
         return sorted(
             path.parent.name
@@ -82,7 +85,7 @@ class LocalCollectionState:
             if self.store.load(path.parent.name).get("mode") == mode
         )
 
-    def load_index(self):
+    def load_index(self) -> JsonObject:
         path = self.root / "signal-index.json"
         try:
             index = json.loads(path.read_bytes()) if path.exists() else {}
@@ -92,14 +95,14 @@ class LocalCollectionState:
             raise IngestionError("collection_index_invalid", "Invalid collection index")
         return index
 
-    def commit(self, run, index):
+    def commit(self, run: JsonObject, index: JsonObject) -> None:
         # Objects are durable before this pointer is published. Recovery verifies
         # the bundle's hash before replaying the two mutable file writes.
         digest = self.store.put(json_bytes({"run": run, "index": index}))
         atomic_json(self.root / "collection-pending.json", {"bundle_sha256": digest})
         self._recover()
 
-    def _recover(self):
+    def _recover(self) -> None:
         path = self.root / "collection-pending.json"
         if not path.exists():
             return
@@ -119,7 +122,7 @@ class LocalCollectionState:
         sync_directory(self.root)
 
     @contextmanager
-    def lock(self):
+    def lock(self) -> Iterator[None]:
         with (self.root / "signal.lock").open("a") as handle:
             fcntl.flock(handle, fcntl.LOCK_EX)
             self._recover()
@@ -132,27 +135,27 @@ class LocalCollectionState:
 class CollectionStorage:
     """Compose independent artifact and state adapters; no filesystem required."""
 
-    def __init__(self, objects: ObjectStore, state: CollectionState):
+    def __init__(self, objects: ObjectStore, state: CollectionState) -> None:
         self.objects = objects
         self.state = state
 
-    def put(self, content):
+    def put(self, content: bytes) -> str:
         return self.objects.put(content)
 
-    def read(self, digest):
+    def read(self, digest: str) -> bytes:
         return self.objects.read(digest)
 
-    def new(self, mode, question):
+    def new(self, mode: str, question: dict[str, str]) -> JsonObject:
         return self.state.new(mode, question)
 
-    def save(self, run):
+    def save(self, run: JsonObject) -> None:
         self.state.save(run)
 
-    def load(self, run_id):
+    def load(self, run_id: str) -> JsonObject:
         return self.state.load(run_id)
 
 
-def collection_storage(store):
+def collection_storage(store: CollectionStorage | RunStore) -> CollectionStorage:
     if isinstance(store, CollectionStorage):
         return store
     if isinstance(store, RunStore):

@@ -1,7 +1,11 @@
 """Versioned literal dates and lexical clues for editorial date review."""
 
 import re
+from collections.abc import Iterator
 from datetime import date
+from typing import Any
+
+from healthlab.common import JsonObject
 
 _MONTHS = {
     name.lower(): i
@@ -34,7 +38,7 @@ _DATES = re.compile(
 )
 
 
-def literal_dates(text):
+def literal_dates(text: str) -> list[Any]:
     """Only explicit complete calendar dates. A year is never inferred from publication."""
     result = []
     for match in _DATES.finditer(text):
@@ -90,7 +94,7 @@ _RELATIVE = {
 }
 
 
-def editorial_literal_dates(text, *, policy=None, publication_date=None):
+def editorial_literal_dates(text: str, *, policy=None, publication_date=None) -> list[Any]:
     dates = literal_dates(text)
     if policy != DATE_POLICY:
         return dates
@@ -116,13 +120,15 @@ def editorial_literal_dates(text, *, policy=None, publication_date=None):
     return sorted(dates, key=lambda item: item["start"])
 
 
-def resolve_yearless_dates(text, publication_date):
+def resolve_yearless_dates(text: str, publication_date: str | None) -> list[Any]:
     """Resolve "sáng 2/11" to a full date with the document's publication year, in code.
 
     The model never infers a year. The result is never after the publication date (a later
     day/month belongs to the previous year) and at most YEAR_INFERENCE_MAX_DAYS before it.
     Deadlines, as-of dates and range endpoints are not event dates and stay unresolved.
     """
+    if publication_date is None:
+        return []
     try:
         published = date.fromisoformat(publication_date)
     except (TypeError, ValueError):
@@ -154,7 +160,7 @@ def resolve_yearless_dates(text, publication_date):
     return found
 
 
-def is_range_endpoint(text, item):
+def is_range_endpoint(text: str, item: JsonObject) -> bool:
     before, after = text[: item["start"]], text[item["end"] :]
     return bool(
         re.search(r"\d" + _RANGE + "$", before, re.I)
@@ -162,7 +168,7 @@ def is_range_endpoint(text, item):
     )
 
 
-def date_role(text, item):
+def date_role(text: str, item: JsonObject) -> str:
     before = text[: item["start"]]
     if _AS_OF.search(before):
         return "as_of"
@@ -173,7 +179,7 @@ def date_role(text, item):
     return "unverified"
 
 
-def incomplete_date_mentions(text):
+def incomplete_date_mentions(text: str) -> Iterator[JsonObject]:
     for match in _YEARLESS.finditer(text):
         day, month = map(int, match.groups())
         try:

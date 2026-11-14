@@ -5,7 +5,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event, Lock
 
-from healthlab.common import decode_model_json
+from healthlab.common import JsonObject, decode_model_json
 from healthlab.data.pilot import runner_lock
 from healthlab.editorial.contracts import (
     CONTEXT_CONTRACTS,
@@ -26,13 +26,16 @@ from healthlab.editorial.runs import allocated_calls, jobs, load
 from healthlab.editorial.scope import validate_scope
 from healthlab.models import IngestionError
 from healthlab.pipeline import audit_writer
+from healthlab.provider import Provider
 from healthlab.signal.diagnostics import Span, exception_diagnostic
-from healthlab.store import json_bytes
+from healthlab.store import RunStore, json_bytes
 
 logger = logging.getLogger(__name__)
 
 
-def run_calls(store, run_id, provider, *, role="classify", workers=3, max_calls=180):
+def run_calls(
+    store: RunStore, run_id: str, provider: Provider, *, role="classify", workers=3, max_calls=180
+) -> JsonObject:
     if not 1 <= workers <= 4 or not 1 <= max_calls <= 500:
         raise ValueError("Invalid bounded invocation")
     with runner_lock(store.root):

@@ -2,15 +2,25 @@
 
 import json
 import xml.etree.ElementTree as ET
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any, Protocol
 
-from healthlab.common import utc_now
+from healthlab.common import JsonObject, utc_now
 from healthlab.models import PARSER_VERSION, IngestionError, Question
-from healthlab.pubmed import parse_records, parse_search
+from healthlab.pubmed import PubMedClient, parse_records, parse_search
 from healthlab.store import RunStore, json_bytes
 
 
-def audit_writer(store, run):
+class RunWriter(Protocol):
+    """What an online ingest needs: a RunStore or the collector's CollectionStorage."""
+
+    def new(self, mode: str, question: dict[str, Any]) -> JsonObject: ...
+    def save(self, run: JsonObject) -> None: ...
+    def put(self, content: bytes) -> str: ...
+
+
+def audit_writer(store: RunWriter, run: JsonObject) -> Callable:
     def audit(event, body):
         if body is not None:
             event["body_sha256"] = store.put(body)
@@ -20,7 +30,7 @@ def audit_writer(store, run):
     return audit
 
 
-def fail(store, run, exc):
+def fail(store: RunWriter, run: JsonObject, exc: IngestionError) -> JsonObject:
     run["status"] = "failed"
     run["errors"].append({"stage": run["stage"], "code": exc.code, "message": str(exc)})
     run["finished_at"] = utc_now()
@@ -30,13 +40,13 @@ def fail(store, run, exc):
     return run
 
 
-def finish(store, run):
+def finish(store: RunWriter, run: JsonObject) -> JsonObject:
     run["finished_at"] = utc_now()
     store.save(run)
     return run
 
 
-def normalize(store, run, raw):
+def normalize(store: RunWriter, run: JsonObject, raw: bytes) -> JsonObject:
     run["stage"] = "parse"
     store.save(run)
     documents, report = parse_records(raw)
@@ -44,7 +54,7 @@ def normalize(store, run, raw):
     returned = {d.pmid for d in documents}
     missing = [p for p in requested if p not in returned]
     unexpected = sorted(returned - set(requested))
-    raw_records = {}
+    raw_records: dict[str, bytes] = {}
     # Preserve per-record metadata not yet represented by the normalizer.
     for node in ET.fromstring(raw).findall("PubmedArticle"):
         pmid = node.findtext("./MedlineCitation/PMID", "").strip()
@@ -94,7 +104,7 @@ def normalize(store, run, raw):
     return finish(store, run)
 
 
-def ingest(store: RunStore, question: Question, client):
+def ingest(store: RunWriter, question: Question, client: PubMedClient) -> JsonObject:
     run = store.new("online", question.model_dump(mode="json"))
     try:
         run["stage"] = "search"
@@ -136,7 +146,7 @@ def ingest(store: RunStore, question: Question, client):
         return fail(store, run, IngestionError("storage_error", "Could not persist run data"))
 
 
-def replay(store: RunStore, parent_id: str):
+def replay(store: RunStore, parent_id: str) -> JsonObject:
     parent = store.load(parent_id)
     if parent.get("mode") not in {"online", "replay", "import_probe"}:
         raise IngestionError("invalid_parent", "Replay requires an ingestion run")
@@ -181,7 +191,7 @@ def replay(store: RunStore, parent_id: str):
         return fail(store, run, exc)
 
 
-def import_probe(store: RunStore, artifact_path: Path, xml_path: Path):
+def import_probe(store: RunStore, artifact_path: Path, xml_path: Path) -> JsonObject:
     """Import the actual CP3 selection (including manual edge case), not a fake online run."""
     artifact_bytes = artifact_path.read_bytes()
     xml = xml_path.read_bytes()

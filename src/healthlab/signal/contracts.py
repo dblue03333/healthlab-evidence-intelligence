@@ -1,7 +1,7 @@
 """Source-neutral contracts, separate from PubMed scientific evidence."""
 
 import re
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Self
 from urllib.parse import urlsplit
 
 from pydantic import Field, field_validator, model_validator
@@ -12,7 +12,7 @@ from healthlab.signal.html_rules import HTMLDiscoveryRules, HTMLSourceRules, bui
 Text = Annotated[str, Field(min_length=1)]
 
 
-def public_url(value):
+def public_url(value: str) -> str:
     parsed = urlsplit(value)
     if (
         parsed.scheme != "https"
@@ -45,18 +45,18 @@ class Source(Contract):
     html_media_policy: Literal["review", "text_only"] = "review"
 
     @property
-    def resolved_html_rules(self):
+    def resolved_html_rules(self) -> HTMLSourceRules:
         return self.html_rules or builtin_html_rules(self.html_profile, listing_url=self.url)
 
     @field_validator("source_id")
     @classmethod
-    def safe_id(cls, value):
+    def safe_id(cls, value: str) -> str:
         if not re.fullmatch(r"[a-z0-9_-]{1,64}", value):
             raise ValueError("source_id must use lowercase letters, digits, _ or -")
         return value
 
     @model_validator(mode="after")
-    def connector_contract(self):
+    def connector_contract(self) -> Self:
         if self.kind == "rss":
             public_url(self.url or "")
         if self.kind == "html":
@@ -90,7 +90,7 @@ class Source(Contract):
                     or discovery.moh_portal_categories
                     or not any(
                         urlsplit(u).path.startswith("/vietnam/news/speeches")
-                        for u in [self.url] + discovery.additional_listing_urls
+                        for u in [self.url or "", *discovery.additional_listing_urls]
                     )
                 ):
                     raise ValueError(
@@ -148,7 +148,7 @@ class Registry(Contract):
     sources: list[Source] = Field(min_length=1)
 
     @model_validator(mode="after")
-    def unique_sources(self):
+    def unique_sources(self) -> Self:
         ids = [s.source_id for s in self.sources]
         if len(set(ids)) != len(ids):
             raise ValueError("Duplicate source_id")
@@ -177,7 +177,7 @@ class SourceDocument(Contract):
 
     @field_validator("url")
     @classmethod
-    def safe_link(cls, value):
+    def safe_link(cls, value: str) -> str:
         return public_url(value)
 
 
@@ -196,7 +196,7 @@ class Draft(Contract):
     signals: list[Signal] = Field(max_length=5)
 
     @model_validator(mode="after")
-    def unique_snapshots(self):
+    def unique_snapshots(self) -> Self:
         ids = [s.snapshot_id for s in self.signals]
         if len(ids) != len(set(ids)):
             raise ValueError("Use at most one signal per snapshot in this pilot")

@@ -4,21 +4,30 @@ import json
 import re
 import smtplib
 import ssl
+from collections.abc import Callable
+from email.mime.multipart import MIMEMultipart
+from pathlib import Path
 
-from healthlab.common import utc_now, write_text_atomic
+from healthlab.common import JsonObject, utc_now, write_text_atomic
 
 
-def mailbox(value):
+def mailbox(value: str) -> str:
     if not re.fullmatch(r"[^\s<>@,;]+@[^\s<>@,;]+\.[^\s<>@,;]+", value):
         raise ValueError("Expected a plain email address without display name or whitespace")
     return value
 
 
-def smtp_gmail():
+def smtp_gmail() -> smtplib.SMTP_SSL:
     return smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30, context=ssl.create_default_context())
 
 
-def deliver(ledger_path, prepared, sender, app_password, smtp_factory=None):
+def deliver(
+    ledger_path: Path,
+    prepared: list[tuple[MIMEMultipart, str]],
+    sender: str,
+    app_password: str,
+    smtp_factory: Callable[[], smtplib.SMTP] | None = None,
+) -> tuple[JsonObject, list[JsonObject]]:
     """Send prepared (message, key) pairs once each; the ledger survives every outcome.
 
     Accepted, pending and unknown keys are never resent; a pending entry is written before

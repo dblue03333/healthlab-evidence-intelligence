@@ -1,17 +1,31 @@
 """Public WordPress posts discovery by publication window; article bodies stay HTML."""
 
 import json
+from collections.abc import Callable
 from datetime import datetime, time, timedelta
 from urllib.parse import urlencode
 
+from healthlab.common import JsonObject
 from healthlab.models import IngestionError
+from healthlab.signal.contracts import Source
 from healthlab.signal.discovery import FATAL_STORAGE
 from healthlab.signal.html_adapter import ConfiguredHTMLAdapter
 from healthlab.signal.html_tree import ArticleTree
+from healthlab.signal.source_http import HTMLFetcher
 
 
-def discover_wordpress(source, fetcher, checkpoint, save, *, mindate, maxdate):
+def discover_wordpress(
+    source: Source,
+    fetcher: HTMLFetcher,
+    checkpoint: JsonObject,
+    save: Callable,
+    *,
+    mindate,
+    maxdate,
+) -> JsonObject:
     rules = source.html_discovery
+    if rules is None:  # Only sources configured for this discovery branch reach here.
+        raise ValueError("Source has no HTML discovery rules")
     adapter = ConfiguredHTMLAdapter(source.resolved_html_rules)
     if maxdate is None or maxdate < mindate:
         raise ValueError("WordPress discovery requires a complete publication window")
@@ -37,7 +51,7 @@ def discover_wordpress(source, fetcher, checkpoint, save, *, mindate, maxdate):
     deferred = []
     for number in range(1, rules.max_listing_pages + 1):
         url = page_url(number)
-        page = {"url": url, "status": "running", "candidate_urls": []}
+        page: JsonObject = {"url": url, "status": "running", "candidate_urls": []}
         pages.append(page)
         try:
             raw, digest = fetcher.fetch(url, checkpoint, save, response_format="json")

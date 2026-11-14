@@ -10,7 +10,7 @@ import uuid
 from html import escape
 from pathlib import Path
 
-from healthlab.common import configure_logging
+from healthlab.common import JsonObject, configure_logging
 from healthlab.data.datasets import gold_records, read_dataset
 from healthlab.data.incidents import (
     digest,
@@ -21,7 +21,7 @@ from healthlab.data.incidents import (
     transition,
 )
 from healthlab.models import IngestionError
-from healthlab.signal.contracts import Registry
+from healthlab.signal.contracts import Registry, Source
 from healthlab.store import RunStore
 
 logger = logging.getLogger(__name__)
@@ -29,9 +29,9 @@ logger = logging.getLogger(__name__)
 VERSION = "healthlab-supervision-1"
 
 
-def source_contract(source):
+def source_contract(source: Source) -> JsonObject:
     discovery = source.html_discovery
-    branches = []
+    branches: list[JsonObject] = []
     if discovery and discovery.moh_portal_categories:
         branches = [{"category_id": c} for c in discovery.moh_portal_categories]
     elif not (discovery and discovery.wordpress_api_url):
@@ -65,7 +65,9 @@ def source_contract(source):
     }
 
 
-def _finding(source_id, code, entity, *, severity="error", evidence=None):
+def _finding(
+    source_id: str, code: str, entity: str, *, severity="error", evidence=None
+) -> JsonObject:
     return {
         "source_id": source_id,
         "code": code,
@@ -76,15 +78,15 @@ def _finding(source_id, code, entity, *, severity="error", evidence=None):
     }
 
 
-def _branch_matches(branch, page):
+def _branch_matches(branch: dict[str, str], page: JsonObject) -> bool:
     if "api_url_prefix" in branch:
         return page.get("url", "").startswith(branch["api_url_prefix"])
     return all(page.get(k) == v for k, v in branch.items())
 
 
-def assessment(store, dataset_id):
+def assessment(store: RunStore, dataset_id: str) -> JsonObject:
     """Deterministic assessment of frozen inputs; does not change their contents."""
-    result = {
+    result: JsonObject = {
         "schema_version": VERSION,
         "dataset_id": dataset_id,
         "window": None,
@@ -161,7 +163,7 @@ def assessment(store, dataset_id):
     return result
 
 
-def supervise(store, dataset_id):
+def supervise(store: RunStore, dataset_id: str) -> JsonObject:
     value = assessment(store, dataset_id)
     ref, state, changes = record_assessment(store, value)
     active = relevant_open(state, value["source_ids"], value["window"])
@@ -189,7 +191,7 @@ def supervise(store, dataset_id):
     }
 
 
-def record_pilot_failure(store, journal, exc):
+def record_pilot_failure(store: RunStore, journal: JsonObject, exc: BaseException) -> str:
     """Best-effort caller must preserve the original exception if storage fails."""
     code = getattr(exc, "code", "pilot_interrupted")
     value = {
@@ -213,7 +215,9 @@ def record_pilot_failure(store, journal, exc):
     return record_assessment(store, value)[0]
 
 
-def record_operation_failure(store, operation, exc, *, context=None):
+def record_operation_failure(
+    store: RunStore, operation: str, exc: Exception, *, context: JsonObject | None = None
+) -> str:
     """Catch failures outside a journal; do not persist raw exception text."""
     value = {
         "schema_version": VERSION,
@@ -232,7 +236,7 @@ def record_operation_failure(store, operation, exc, *, context=None):
     return record_assessment(store, value)[0]
 
 
-def supervised_records(store, dataset_id):
+def supervised_records(store: RunStore, dataset_id: str) -> list[JsonObject]:
     """Consumer entry point: readiness plus outstanding human review gate."""
     result = supervise(store, dataset_id)
     if result["gate"] != "ready":
@@ -240,7 +244,7 @@ def supervised_records(store, dataset_id):
     return gold_records(store, dataset_id)
 
 
-def report_html(store, result=None):
+def report_html(store: RunStore, result: dict[str, str] | None = None) -> str:
     state = snapshot(store)
     content = {
         "assessment": result,
@@ -284,7 +288,7 @@ def report_html(store, result=None):
     )
 
 
-def main(argv=None):
+def main(argv: list[str] | None = None) -> int:
     configure_logging()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--store", type=Path, default=Path("outputs/data_20261026"))

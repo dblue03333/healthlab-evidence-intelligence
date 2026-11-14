@@ -24,7 +24,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from healthlab.common import configure_logging, decode_model_json, utc_now
+from healthlab.common import JsonObject, configure_logging, decode_model_json, utc_now
 from healthlab.config import FPTSettings
 from healthlab.data.pilot import runner_lock
 from healthlab.editorial.contracts import passage_inputs
@@ -34,7 +34,7 @@ from healthlab.editorial.runs import jobs, load
 from healthlab.editorial.scope import validate_scope
 from healthlab.models import IngestionError
 from healthlab.pipeline import audit_writer
-from healthlab.provider import FPTProvider
+from healthlab.provider import FPTProvider, Provider
 from healthlab.store import RunStore, json_bytes
 
 VERSION = "recall-check-1"
@@ -42,7 +42,7 @@ MODE = "editorial_recall"
 DEFAULT_MODEL = "GLM-5.2"
 
 
-def recall_provider(model=None, client=None):
+def recall_provider(model: None = None, client: None = None) -> Provider:
     """FPT with the recall model. Thinking is left to the provider, as in the model trial."""
     settings = FPTSettings().model_copy(
         update={
@@ -53,11 +53,11 @@ def recall_provider(model=None, client=None):
     return FPTProvider(settings, client)
 
 
-def flagged(assessment):
+def flagged(assessment: JsonObject) -> bool:
     return assessment["verdict"] == "substantive" and not assessment["requires_outside_knowledge"]
 
 
-def targets(store, run):
+def targets(store: RunStore, run: JsonObject) -> list[str]:
     """Articles the run did not release; refuse while the run is still unfinished."""
     calls = [j for j in jobs(store, run) if j["role"] != "draft"]
     if not calls or any(j["status"] != "completed" for j in calls):
@@ -66,7 +66,7 @@ def targets(store, run):
     return [a["document_id"] for a in packet["articles"] if not a["eligible_for_unapproved_draft"]]
 
 
-def check(store, run_id, provider, *, max_calls=None):
+def check(store: RunStore, run_id: str, provider: Provider, *, max_calls=None) -> JsonObject:
     """Run the recall check, resuming a previous one. Returns the recall record."""
     with runner_lock(store.root):
         run, records = load(store, run_id)
@@ -102,7 +102,7 @@ def check(store, run_id, provider, *, max_calls=None):
             row = records[document_id]
             prompt, schema = messages("scope", row, run["question"], version=run["version"])
             record["calls"] += 1
-            result = {"status": "started", "attempted_at": utc_now()}
+            result: JsonObject = {"status": "started", "attempted_at": utc_now()}
             record["results"][document_id] = result
             store.save(record)  # Counted before dispatch, like editorial calls.
             try:
@@ -139,7 +139,7 @@ def check(store, run_id, provider, *, max_calls=None):
     return record
 
 
-def summary(store, run_id):
+def summary(store: RunStore, run_id: str) -> JsonObject | None:
     """What the approver sees: progress and each flagged article with its passages."""
     run, records = load(store, run_id)
     if not run.get("recall_check_id"):

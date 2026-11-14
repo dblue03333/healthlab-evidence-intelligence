@@ -3,9 +3,11 @@
 import json
 import time
 import xml.etree.ElementTree as ET
+from collections.abc import Callable
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from urllib.parse import quote, quote_plus
+from xml.etree.ElementTree import Element
 
 import httpx
 
@@ -53,7 +55,7 @@ def parse_search(raw: bytes) -> dict:
         raise IngestionError("invalid_search_response", "Malformed ESearch JSON/contract") from exc
 
 
-def text_of(element):
+def text_of(element: Element | None) -> str | None:
     if element is None:
         return None
     return "".join(element.itertext()).strip() or None
@@ -68,8 +70,8 @@ def parse_records(raw: bytes) -> tuple[list[Document], dict]:
         raise IngestionError("source_error", "EFetch returned an API error")
     if root.tag != "PubmedArticleSet":
         raise IngestionError("invalid_xml", "Expected PubmedArticleSet root")
-    by_id = {}
-    raw_by_id = {}
+    by_id: dict[str, Document] = {}
+    raw_by_id: dict[str, str] = {}
     duplicate_count = 0
     unsupported = []
     for item in root:
@@ -151,7 +153,9 @@ def parse_records(raw: bytes) -> tuple[list[Document], dict]:
 class PubMedClient:
     """Sequential CLI limiter; not a shared cross-process/IP rate coordinator."""
 
-    def __init__(self, settings: Settings, *, client=None, sleep=time.sleep, clock=time.monotonic):
+    def __init__(
+        self, settings: Settings, *, client=None, sleep=time.sleep, clock=time.monotonic
+    ) -> None:
         settings.validate_online()
         self.settings = settings
         self.client = client or httpx.Client(timeout=settings.timeout)
@@ -163,7 +167,7 @@ class PubMedClient:
         if self.owns_client:
             self.client.close()
 
-    def request(self, endpoint: str, params: dict, audit) -> bytes:
+    def request(self, endpoint: str, params: dict, audit: Callable) -> bytes:
         public = {**params, "tool": self.settings.tool, "email": self.settings.email}
         wire = dict(public)
         api_key = self.settings.api_key.get_secret_value()
@@ -207,7 +211,7 @@ class PubMedClient:
                 },
                 body,
             )
-            if status == 200:
+            if status == 200 and body is not None:  # A status always comes with its body.
                 return body
             transient = error is not None or status in {429, 500, 502, 503, 504}
             if not transient or attempt == self.settings.max_attempts:

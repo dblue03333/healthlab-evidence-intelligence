@@ -24,7 +24,7 @@ from healthlab.store import RunStore
 logger = logging.getLogger(__name__)
 
 
-def main(argv=None):
+def main(argv: list[str] | None = None) -> int:
     load_dotenv()
     configure_logging()
     parser = argparse.ArgumentParser(description=__doc__)

@@ -2,6 +2,7 @@
 
 import json
 
+from healthlab.common import JsonObject
 from healthlab.editorial.contracts import (
     CONTEXT_CONTRACTS,
     ArticleProposal,
@@ -16,13 +17,14 @@ from healthlab.editorial.review_policy import (
 )
 from healthlab.editorial.runs import jobs, load
 from healthlab.editorial.scope import scope_gate
+from healthlab.store import RunStore
 
 
-def requires_scope_assessment(run):
+def requires_scope_assessment(run: JsonObject) -> bool:
     return run["version"] not in {f"gold-editorial-{i}" for i in range(1, 8)}
 
 
-def evidence_packet(store, run_id):
+def evidence_packet(store: RunStore, run_id: str) -> JsonObject:
     run, records = load(store, run_id)
     calls = jobs(store, run)
     reviews = {
@@ -35,7 +37,8 @@ def evidence_packet(store, run_id):
         for j in calls
         if j["role"] == "scope" and j["status"] == "completed"
     }
-    evidence, articles = [], []
+    evidence: list[JsonObject] = []
+    articles: list[JsonObject] = []
     for job in calls:
         if job["role"] != "classify" or job["status"] != "completed":
             continue
@@ -80,6 +83,8 @@ def evidence_packet(store, run_id):
             }
         )
         if eligible:
+            # Only topic-only gates release without a review; the others require one.
+            reviewed: JsonObject = review or {}
             # topic-only-1 passes every source-bound fact; the approver checks them against
             # the source. fact-flags-1 passes every undropped fact with its reviewer flags;
             # earlier policies pass only reviewer-supported facts.
@@ -98,14 +103,14 @@ def evidence_packet(store, run_id):
                 indexes = [f["fact_index"] for f in gate["facts"] if f["released"]]
             else:
                 indexes = (
-                    sorted(flagged) if flagged is not None else review["supported_fact_indexes"]
+                    sorted(flagged) if flagged is not None else reviewed["supported_fact_indexes"]
                 )
             for index in indexes:
                 f = p["resolved_facts"][index]
                 if (
                     not topic_only
                     and f.get("date_evidence")
-                    and index not in review.get("supported_date_fact_indexes", [])
+                    and index not in reviewed.get("supported_date_fact_indexes", [])
                 ):
                     continue  # Never pass an unreviewed cross-passage date to the writer.
                 if row["body"][f["start"] : f["end"]] != f["quote"]:

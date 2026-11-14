@@ -7,34 +7,37 @@ transport is hidden here. Acknowledging a finding never changes the captured dat
 import hashlib
 import json
 from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
 
+from healthlab.common import JsonObject
 from healthlab.signal.storage import atomic_json, collection_storage
 from healthlab.store import RunStore, json_bytes
 
 VERSION = "healthlab-incidents-1"
 
 
-def digest(value):
+def digest(value: JsonObject) -> str:
     return hashlib.sha256(json_bytes(value)).hexdigest()
 
 
-def now():
+def now() -> str:
     return datetime.now(UTC).isoformat()
 
 
-def incident_id(finding):
+def incident_id(finding: JsonObject) -> str:
     # Rules/budgets/windows may change during a repair. They must not make an
     # unresolved problem disappear. The full signature is retained in evidence.
     return "INC-" + digest({k: finding[k] for k in ("source_id", "code", "entity")})
 
 
-def _pointer(store):
+def _pointer(store: RunStore) -> Path:
     if not isinstance(store, RunStore):
         raise ValueError("Incident supervision currently requires a local RunStore")
     return store.root / "supervision" / "current.json"
 
 
-def _load(store):
+def _load(store: RunStore) -> JsonObject:
     path = _pointer(store)
     if not path.exists():
         return {"schema_version": VERSION, "incidents": {}, "observations": [], "events": []}
@@ -47,7 +50,7 @@ def _load(store):
     return state
 
 
-def _commit(store, state):
+def _commit(store: RunStore, state: JsonObject) -> None:
     path = _pointer(store)
     path.parent.mkdir(parents=True, exist_ok=True)
     previous = json.loads(path.read_bytes())["state_sha256"] if path.exists() else None
@@ -56,13 +59,13 @@ def _commit(store, state):
     atomic_json(path, {"schema_version": VERSION, "state_sha256": ref})
 
 
-def snapshot(store):
+def snapshot(store: RunStore) -> JsonObject:
     """Return a verified consistent snapshot; corruption fails loudly."""
     with collection_storage(store).state.lock():
         return _load(store)
 
 
-def record_assessment(store, assessment):
+def record_assessment(store: RunStore, assessment: JsonObject) -> Any:
     """Idempotently record observations; a distinct recurrence reopens an incident."""
     with collection_storage(store).state.lock():
         state = _load(store)
@@ -115,7 +118,9 @@ def record_assessment(store, assessment):
         return ref, state, changes
 
 
-def transition(store, identifier, action, *, actor, note, evidence=None):
+def transition(
+    store: RunStore, identifier: str, action: str, *, actor, note, evidence=None
+) -> JsonObject:
     if action not in {"acknowledge", "resolve"}:
         raise ValueError("Expected acknowledge or resolve")
     if (
@@ -147,7 +152,7 @@ def transition(store, identifier, action, *, actor, note, evidence=None):
         return row
 
 
-def relevant_open(state, source_ids, window):
+def relevant_open(state: JsonObject, source_ids: list[Any], window: JsonObject | None) -> list[Any]:
     def overlaps(row):
         return any(
             w is None

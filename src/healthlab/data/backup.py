@@ -10,7 +10,7 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
-from healthlab.common import configure_logging
+from healthlab.common import JsonObject, configure_logging
 from healthlab.data.datasets import build_dataset, read_dataset
 from healthlab.data.pilot import runner_lock
 from healthlab.data.power import awake_for_cli
@@ -21,12 +21,12 @@ from healthlab.store import RunStore, json_bytes, sync_directory
 EXCLUDED = {".env", ".git", ".venv", "__pycache__", ".DS_Store"}
 
 
-def digest(path):
+def digest(path: Path) -> str:
     with path.open("rb") as handle:
         return hashlib.file_digest(handle, "sha256").hexdigest()
 
 
-def verify_snapshot(path):
+def verify_snapshot(path: Path) -> JsonObject:
     path = Path(path).resolve()
     manifest = json.loads((path / "snapshot.json").read_bytes())
     if any(p.is_symlink() for p in path.rglob("*")):
@@ -48,7 +48,9 @@ def verify_snapshot(path):
     return {"verified": True, "files": len(expected), "datasets": manifest["datasets"]}
 
 
-def create_snapshot(store, parent, *, project=None, require_independent=True):
+def create_snapshot(
+    store: RunStore, parent: Path, *, project=None, require_independent=True
+) -> JsonObject:
     root = store.root.resolve()
     parent = Path(parent).resolve()
     # Refuse a missing volume/path rather than accidentally backing up on root disk.

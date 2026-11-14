@@ -19,7 +19,7 @@ from healthlab.provider import FPTProvider
 from healthlab.store import RunStore
 
 
-def main(argv=None):
+def main(argv: list[str] | None = None) -> int:
     configure_logging()
     parser = argparse.ArgumentParser(prog="python -m healthlab.editorial", description=__doc__)
     parser.add_argument("--store", type=Path, default=Path("outputs/editorial_20261029"))

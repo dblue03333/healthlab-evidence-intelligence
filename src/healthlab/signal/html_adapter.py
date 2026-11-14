@@ -2,19 +2,22 @@
 
 import json
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import date, datetime
+from typing import Any
 from urllib.parse import parse_qs, parse_qsl, urldefrag, urlencode, urljoin, urlsplit, urlunsplit
 
+from healthlab.common import JsonObject
 from healthlab.models import IngestionError
-from healthlab.signal.html_rules import HTMLSourceRules
-from healthlab.signal.html_tree import ArticleTree
+from healthlab.signal.html_rules import HTMLSourceRules, TextDateRule
+from healthlab.signal.html_tree import ArticleTree, Element
 from healthlab.signal.source_probe import topic_hint
 
 PARSER_VERSION = "official-html-7"
 
 
-def parse_day(value, date_format):
+def parse_day(value: str, date_format: str) -> str:
     if date_format == "iso":
         return iso_day(value).isoformat()
     # Explicit English month mapping avoids depending on the machine locale.
@@ -27,7 +30,7 @@ def parse_day(value, date_format):
     return datetime.strptime(value, date_format).date().isoformat()
 
 
-def read_date(node, rule):
+def read_date(node: Element, rule: TextDateRule) -> str | None:
     value = node.attrs.get(rule.attribute, "") if rule.attribute else node.text()
     if rule.pattern:
         match = re.fullmatch(rule.pattern, value)
@@ -50,12 +53,12 @@ class URLDecision:
 
 
 class ConfiguredHTMLAdapter:
-    def __init__(self, rules: HTMLSourceRules):
+    def __init__(self, rules: HTMLSourceRules) -> None:
         self.rules = rules
         self.includes = [re.compile(p) for p in rules.article_urls.include_path_patterns]
         self.excludes = [re.compile(p) for p in rules.article_urls.exclude_path_patterns]
 
-    def classify_url(self, href, listing_url):
+    def classify_url(self, href: str, listing_url: str) -> URLDecision:
         url = href
         try:
             url = urldefrag(urljoin(listing_url, href))[0]
@@ -96,17 +99,17 @@ class ConfiguredHTMLAdapter:
         normalized = urlunsplit(("https", self.rules.host, parsed.path, query_string, ""))
         return URLDecision(normalized, True, "included_path")
 
-    def parse_article(self, raw, *, url=None):
+    def parse_article(self, raw: bytes, *, url=None) -> JsonObject:
         return _parse_article(raw, self.rules, url=url)
 
-    def listing_dates(self, raw, listing_url):
+    def listing_dates(self, raw: bytes, listing_url: str) -> dict[str, str]:
         return _listing_dates(raw, listing_url, self)
 
-    def listing_date_values(self, raw, listing_url):
+    def listing_date_values(self, raw: bytes, listing_url: str) -> JsonObject:
         return _listing_dates(raw, listing_url, self, keep_conflicts=True)
 
 
-def iso_day(value):
+def iso_day(value: str) -> date:
     try:
         return (
             date.fromisoformat(value) if len(value) == 10 else datetime.fromisoformat(value).date()
@@ -115,7 +118,7 @@ def iso_day(value):
         raise IngestionError("html_date_invalid", "Publication date is invalid") from None
 
 
-def json_records(value):
+def json_records(value: Any) -> Iterator[JsonObject]:
     if isinstance(value, dict):
         yield value
         yield from json_records(value.get("@graph", []))
@@ -124,7 +127,7 @@ def json_records(value):
             yield from json_records(item)
 
 
-def article_media(body, url):
+def article_media(body: Element, url: str | None) -> list[Any]:
     """Inventory media in the scoped body; do not fetch or claim to transcribe it."""
     found, seen = [], set()
     for node in body.nodes():
@@ -172,7 +175,7 @@ def article_media(body, url):
     return found
 
 
-def relevant_json_record(record, url):
+def relevant_json_record(record: JsonObject, url: str | None) -> bool:
     """Do not borrow publication dates from Organization/Breadcrumb/related articles."""
     types = record.get("@type", [])
     types = [types] if isinstance(types, str) else types
@@ -187,14 +190,14 @@ def relevant_json_record(record, url):
     return True
 
 
-def _parse_article(raw, rules, *, url=None):
+def _parse_article(raw: bytes, rules: HTMLSourceRules, *, url=None) -> JsonObject:
     nodes = list(ArticleTree(raw).root.nodes())
     bodies = [node for node in nodes if rules.body.matches(node)]
     if len(bodies) != 1:
         raise IngestionError("html_article_shape", "Article title/body selector changed")
     article_scope = None
     if rules.article_scope:
-        ancestor = bodies[0]
+        ancestor: Element | None = bodies[0]
         while ancestor is not None:
             if rules.article_scope.matches(ancestor):
                 article_scope = ancestor
@@ -207,7 +210,7 @@ def _parse_article(raw, rules, *, url=None):
     if len(headings) != 1:
         raise IngestionError("html_article_shape", "Article title/body selector changed")
     passages = []
-    if article_scope and rules.lead:
+    if rules.article_scope and article_scope and rules.lead:
         leads = [node.text() for node in scoped_nodes if rules.lead.matches(node)]
         if len(leads) > 1:
             raise IngestionError("html_article_shape", "Ambiguous article introduction")
@@ -272,7 +275,8 @@ def _parse_article(raw, rules, *, url=None):
             if value is None:
                 continue
             locator = rule.selector.locator
-            if rule.scope == "article_children":
+            # The rules contract requires an article scope for article_children dates.
+            if rule.scope == "article_children" and rules.article_scope:
                 locator = rules.article_scope.locator + " > " + locator
             if rule.attribute:
                 locator += "@" + rule.attribute
@@ -309,9 +313,11 @@ def _parse_article(raw, rules, *, url=None):
     }
 
 
-def _listing_dates(raw, listing_url, adapter, *, keep_conflicts=False):
+def _listing_dates(
+    raw: bytes, listing_url: str, adapter: ConfiguredHTMLAdapter, *, keep_conflicts=False
+) -> JsonObject:
     """Bind a visible timestamp only to a container identifying one unique article URL."""
-    found = {}
+    found: JsonObject = {}
     rule = adapter.rules.listing_date
     if rule is None:
         return found
@@ -322,7 +328,7 @@ def _listing_dates(raw, listing_url, adapter, *, keep_conflicts=False):
         url = decision.url
         if not decision.accepted:
             continue
-        parent = anchor  # WHO cards contain their timestamp inside the anchor.
+        parent: Element | None = anchor  # WHO cards contain their timestamp inside the anchor.
         for _ in range(rule.max_ancestor_levels):
             if parent is None:
                 break

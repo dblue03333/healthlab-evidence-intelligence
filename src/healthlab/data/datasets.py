@@ -3,9 +3,10 @@
 import hashlib
 import json
 from collections import Counter
+from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
-from healthlab.common import utc_now
+from healthlab.common import JsonObject, utc_now
 from healthlab.data.contracts import (
     Bronze,
     Dataset,
@@ -19,21 +20,21 @@ from healthlab.data.contracts import (
 from healthlab.models import IngestionError
 from healthlab.signal.backup import object_references
 from healthlab.signal.collection import load_documents
-from healthlab.signal.contracts import Registry
+from healthlab.signal.contracts import Registry, Source
 from healthlab.signal.html_adapter import ConfiguredHTMLAdapter, iso_day
-from healthlab.signal.storage import collection_storage
-from healthlab.store import json_bytes
+from healthlab.signal.storage import CollectionStorage, collection_storage
+from healthlab.store import RunStore, json_bytes
 
 
-def encoded(value):
+def encoded(value: Any) -> bytes:
     return json_bytes(value.model_dump(mode="json"))
 
 
-def digest(value):
+def digest(value: Any) -> str:
     return hashlib.sha256(encoded(value)).hexdigest()
 
 
-def verify_objects(storage, root):
+def verify_objects(storage: CollectionStorage, root: str) -> set[str]:
     """Verify the complete reference closure, including raw historical evidence."""
     pending, checked = [root], set()
     while pending:
@@ -44,7 +45,7 @@ def verify_objects(storage, root):
     return checked
 
 
-def document_identity(source, url):
+def document_identity(source: Source, url: str) -> str:
     # The Ministry may publish one article in multiple categories. cid is a
     # navigation context, while aid identifies the document across categories.
     identity = url
@@ -53,7 +54,7 @@ def document_identity(source, url):
     return source.source_id + ":" + hashlib.sha256(identity.encode()).hexdigest()
 
 
-def _response_raw(source, url, checkpoint):
+def _response_raw(source: Source, url: str, checkpoint: JsonObject) -> str | None:
     response = checkpoint.get("responses", {}).get(url)
     if response:
         return response["raw_sha256"]
@@ -68,10 +69,18 @@ def _response_raw(source, url, checkpoint):
     return None
 
 
-def _observation(storage, source, check, checkpoint, reference, documents, window):
+def _observation(
+    storage: CollectionStorage,
+    source: Source,
+    check: JsonObject,
+    checkpoint: JsonObject,
+    reference: dict[str, str] | JsonObject | None,
+    documents: JsonObject,
+    window: Window,
+) -> Observation | NewsletterObservation:
     if (
         not ConfiguredHTMLAdapter(source.resolved_html_rules)
-        .classify_url(check["url"], source.url)
+        .classify_url(check["url"], source.url or "")  # urljoin treats both alike.
         .accepted
     ):
         raise ValueError("Observation URL is outside its configured source scope")
@@ -90,7 +99,7 @@ def _observation(storage, source, check, checkpoint, reference, documents, windo
     ]
     displayed = source.resolved_html_rules.window_date_policy == "source_displayed"
     newsletter = window.basis == "configured_source_calendar_date"
-    selection = {}
+    selection: JsonObject = {}
     if newsletter:
         selection = {
             "selection_date": check.get("selection_date")
@@ -130,13 +139,18 @@ def _observation(storage, source, check, checkpoint, reference, documents, windo
         recovered_from_history=bool(check.get("historical_candidate")),
     )
     if record.outcome == "included":
-        selected_day = record.selection_date if newsletter else record.publication_date
-        selected_evidence = record.selection_date_evidence if newsletter else evidence
+        # The window basis chose the model above, so this is the newsletter case.
+        if isinstance(record, NewsletterObservation):
+            selected_day, selected_evidence = record.selection_date, record.selection_date_evidence
+        else:
+            selected_day, selected_evidence = record.publication_date, evidence
         if not reference or not parsed or not selected_evidence or not selected_day:
             raise ValueError("Included article lacks document or publication evidence")
         doc = documents[reference["snapshot_id"]]
         if (
             doc.title != record.title
+            or record.title is None
+            or record.body is None
             or doc.text != record.title + "\n\n" + record.body
             or doc.publication_date
             != (record.publication_date.isoformat() if record.publication_date else None)
@@ -163,7 +177,9 @@ def _observation(storage, source, check, checkpoint, reference, documents, windo
     return record
 
 
-def assemble(storage, collection, collection_digest):
+def assemble(
+    storage: CollectionStorage, collection: JsonObject, collection_digest: str
+) -> tuple[Dataset, Bronze, Silver, Gold]:
     """Deterministic transforms; no writes, network, model or editorial selection."""
     if collection.get("mode") != "signal_collection" or collection["status"] == "running":
         raise ValueError("Dataset requires a finished collection")
@@ -315,7 +331,7 @@ def assemble(storage, collection, collection_digest):
     return dataset, bronze, silver, gold
 
 
-def build_dataset(store, collection_id):
+def build_dataset(store: RunStore, collection_id: str) -> JsonObject:
     storage = collection_storage(store)
     with storage.state.lock():
         collection = storage.load(collection_id)
@@ -341,7 +357,7 @@ def build_dataset(store, collection_id):
     return summary(dataset_id, *layers[1:])
 
 
-def read_dataset(store, dataset_id):
+def read_dataset(store: RunStore, dataset_id: str) -> tuple[Dataset, Bronze, Silver, Gold]:
     storage = collection_storage(store)
     verify_objects(storage, dataset_id)
     dataset = Dataset.model_validate_json(storage.read(dataset_id))
@@ -362,7 +378,7 @@ def read_dataset(store, dataset_id):
     return expected
 
 
-def gold_records(store, dataset_id, *, allow_partial=False):
+def gold_records(store: RunStore, dataset_id: str, *, allow_partial=False) -> list[JsonObject]:
     _, _, silver, gold = read_dataset(store, dataset_id)
     if gold.status != "ready" and not allow_partial:
         raise IngestionError("dataset_partial", "Dataset has unresolved source coverage gaps")
@@ -370,7 +386,7 @@ def gold_records(store, dataset_id, *, allow_partial=False):
     return [r.model_dump(mode="json") for r in silver.records if r.document_id in selected]
 
 
-def summary(dataset_id, bronze, silver, gold):
+def summary(dataset_id: str, bronze: Bronze, silver: Silver, gold: Gold) -> JsonObject:
     return {
         "dataset_id": dataset_id,
         "collection_id": bronze.collection_id,

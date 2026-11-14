@@ -1,12 +1,16 @@
 """Bounded WHO Vietnam speeches API supplement; HTML discovery remains visible."""
 
 import json
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from urllib.parse import urlencode, urlsplit
 from uuid import UUID
 
+from healthlab.common import JsonObject
 from healthlab.models import IngestionError
+from healthlab.signal.contracts import Source
 from healthlab.signal.html_adapter import ConfiguredHTMLAdapter
+from healthlab.signal.source_http import HTMLFetcher
 
 SITE = "bad9ef31-b8f9-4c48-b98f-345320b3367a"
 PROVIDER = "dynamicProvider13"
@@ -15,12 +19,23 @@ PREFIX = "https://www.who.int/vietnam/news/speeches/speech"
 VERSION = "who-vietnam-speeches-1"
 
 
-def supplement_speeches(result, source, fetcher, checkpoint, save, *, mindate, maxdate):
+def supplement_speeches(
+    result: JsonObject,
+    source: Source,
+    fetcher: HTMLFetcher,
+    checkpoint: JsonObject,
+    save: Callable,
+    *,
+    mindate,
+    maxdate,
+) -> JsonObject:
     from healthlab.signal.discovery import FATAL_STORAGE
 
     if maxdate is None or maxdate < mindate:
         raise ValueError("WHO inventory requires a complete date window")
     rules = source.html_discovery
+    if rules is None:  # Only sources configured for this discovery branch reach here.
+        raise ValueError("Source has no HTML discovery rules")
     query = {
         "sf_culture": "en",
         "sf_site": SITE,
@@ -42,7 +57,12 @@ def supplement_speeches(result, source, fetcher, checkpoint, save, *, mindate, m
     result["discovery_method"] = VERSION + ":html_plus_api"
     for number in range(1, rules.who_speeches_max_pages + 1):
         url = page_url(number)
-        page = {"url": url, "status": "running", "candidate_urls": [], "branch_id": "who_speeches"}
+        page: JsonObject = {
+            "url": url,
+            "status": "running",
+            "candidate_urls": [],
+            "branch_id": "who_speeches",
+        }
         result["listing_pages"].append(page)
         try:
             raw, digest = fetcher.fetch(url, checkpoint, save, response_format="json")
@@ -75,7 +95,7 @@ def supplement_speeches(result, source, fetcher, checkpoint, save, *, mindate, m
                     raise ValueError("Unverified WHO provider, identity or article path")
                 seen.add(native)
                 decision = ConfiguredHTMLAdapter(source.resolved_html_rules).classify_url(
-                    PREFIX + path, source.url
+                    PREFIX + path, source.url or ""
                 )
                 if not decision.accepted or decision.url in seen_urls:
                     raise ValueError("WHO API article URL rejected or repeated")
@@ -149,7 +169,9 @@ AGEING_QUERY = {
 }
 
 
-def supplement_ageing_widget(result, source, fetcher, checkpoint, save):
+def supplement_ageing_widget(
+    result: JsonObject, source: Source, fetcher: HTMLFetcher, checkpoint: JsonObject, save: Callable
+) -> JsonObject:
     """Read the landing's declared top-three widget, never execute upstream JS.
 
     This is a current bounded widget snapshot, not an archive of past membership.
@@ -161,7 +183,12 @@ def supplement_ageing_widget(result, source, fetcher, checkpoint, save):
     from healthlab.signal.discovery import FATAL_STORAGE
     from healthlab.signal.html_adapter import parse_day
 
-    page = {"url": AGEING_URL, "status": "running", "candidate_urls": [], "branch_id": "who_ageing"}
+    page: JsonObject = {
+        "url": AGEING_URL,
+        "status": "running",
+        "candidate_urls": [],
+        "branch_id": "who_ageing",
+    }
     result["listing_pages"].append(page)
     result["listing_budget"] += 1
     result["seed_count"] += 1

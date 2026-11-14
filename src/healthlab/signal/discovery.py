@@ -2,12 +2,19 @@
 
 import json
 import re
+from collections.abc import Callable
 from urllib.parse import parse_qs, parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 
+from healthlab.common import JsonObject
 from healthlab.models import IngestionError
+from healthlab.signal.contracts import Source
 from healthlab.signal.html_adapter import ConfiguredHTMLAdapter
-from healthlab.signal.html_tree import ArticleTree
+from healthlab.signal.html_rules import ElementSelector, HTMLDiscoveryRules
+from healthlab.signal.html_tree import ArticleTree, Element
+from healthlab.signal.source_http import HTMLFetcher
 from healthlab.signal.source_probe import ProbeTarget, page_inventory
+from healthlab.signal.storage import CollectionStorage
+from healthlab.store import RunStore
 
 FATAL_STORAGE = {
     "cache_corrupt",
@@ -19,7 +26,7 @@ FATAL_STORAGE = {
 }
 
 
-def listing_link(href, base, host, rules):
+def listing_link(href: str, base: str, host: str, rules: HTMLDiscoveryRules) -> str | None:
     """Normalize only allowed listing paths. Same-host HTTP upgrade is opt-in."""
     try:
         parsed = urlsplit(urljoin(base, href))
@@ -54,17 +61,27 @@ def listing_link(href, base, host, rules):
         return None
 
 
-def _in_pager(node, selector):
+def _in_pager(node: Element, selector: ElementSelector | None) -> bool:
     if selector is None:
         return True
-    while node is not None:
-        if selector.matches(node):
+    current: Element | None = node
+    while current is not None:
+        if selector.matches(current):
             return True
-        node = node.parent
+        current = current.parent
     return False
 
 
-def discover_listings(store, source, fetcher, checkpoint, save, *, mindate, maxdate=None):
+def discover_listings(
+    store: RunStore,
+    source: Source,
+    fetcher: HTMLFetcher,
+    checkpoint: JsonObject,
+    save: Callable,
+    *,
+    mindate,
+    maxdate=None,
+) -> JsonObject:
     # Compatibility entrypoint for callers outside the shared collection engine.
     from healthlab.signal.source_adapters import source_adapter_for
 
@@ -73,23 +90,41 @@ def discover_listings(store, source, fetcher, checkpoint, save, *, mindate, maxd
     )
 
 
-def discover_html_listings(store, source, fetcher, checkpoint, save, *, mindate, maxdate=None):
+def discover_html_listings(
+    store: RunStore | CollectionStorage,
+    source: Source,
+    fetcher: HTMLFetcher,
+    checkpoint: JsonObject,
+    save: Callable,
+    *,
+    mindate,
+    maxdate=None,
+) -> JsonObject:
+    if source.url is None:  # The source contract requires a listing URL for HTML sources.
+        raise ValueError("HTML source requires a listing URL")
     adapter = ConfiguredHTMLAdapter(source.resolved_html_rules)
+    # Listing dates exist only when the rules say where to read them.
+    date_rule = adapter.rules.listing_date
+    date_locator = date_rule.selector.locator if date_rule else ""
     rules = source.html_discovery
-    queue = list(dict.fromkeys([source.url] + (rules.additional_listing_urls if rules else [])))
+    queue = list(dict.fromkeys([source.url, *(rules.additional_listing_urls if rules else [])]))
     seed_count = len(queue)
     seeds = set(queue)
     budget = rules.max_listing_pages if rules else 1
     queued, visited = set(queue), set()
-    pages, gaps, excluded, candidates, dates = [], [], [], {}, {}
-    date_evidence = {}
+    pages: list[JsonObject] = []
+    gaps: list[JsonObject] = []
+    excluded: list[JsonObject] = []
+    candidates: dict[str, JsonObject] = {}
+    dates: dict[str, set[str]] = {}
+    date_evidence: dict[str, list[JsonObject]] = {}
     primary_hash = None
     total_links = 0
-    fingerprints = {}
+    fingerprints: dict[tuple[str, ...], str] = {}
     while queue and len(pages) < budget:
         url = queue.pop(0)
         visited.add(url)
-        page = {"url": url, "status": "running", "candidate_urls": []}
+        page: JsonObject = {"url": url, "status": "running", "candidate_urls": []}
         pages.append(page)
         try:
             raw, digest = fetcher.fetch(url, checkpoint, save)
@@ -141,8 +176,7 @@ def discover_html_listings(store, source, fetcher, checkpoint, save, *, mindate,
                 dates.setdefault(decision.url, set()).add(value)
                 date_evidence.setdefault(decision.url, []).append(
                     {
-                        "locator": "listing:single-article-container "
-                        + adapter.rules.listing_date.selector.locator,
+                        "locator": "listing:single-article-container " + date_locator,
                         "value": value,
                         "raw_sha256": digest,
                         "listing_url": url,
@@ -231,10 +265,10 @@ def discover_html_listings(store, source, fetcher, checkpoint, save, *, mindate,
                 page["pagination_urls"] = []
             else:
                 number = int(current["page"] or 1)
-                numbered = [
+                matches = [
                     (u, pattern.fullmatch(urlsplit(u).path)) for u in page["pagination_urls"]
                 ]
-                numbered = [(u, int(m["page"] or 1)) for u, m in numbered if m]
+                numbered = [(u, int(m["page"] or 1)) for u, m in matches if m]
                 page["observed_pagination_urls"] = page["pagination_urls"]
                 page["pagination_urls"] = [u for u, n in numbered if n == number + 1][:1]
                 if (

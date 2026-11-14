@@ -35,19 +35,21 @@ import html
 import json
 import os
 import sys
+from collections.abc import Collection, Iterator, Sequence
 from email.header import Header
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.utils import formatdate
 from pathlib import Path
+from typing import Any, cast
 
 from dotenv import load_dotenv
 from pydantic import Field
 
-from healthlab.common import configure_logging, utc_now, write_text_atomic
+from healthlab.common import JsonObject, configure_logging, utc_now, write_text_atomic
 from healthlab.data.datasets import read_dataset
 from healthlab.data.pilot import runner_lock
-from healthlab.editorial.contracts import EditorialDraft
+from healthlab.editorial.contracts import DraftClaim, EditorialDraft
 from healthlab.editorial.mail import deliver, mailbox
 from healthlab.editorial.packet import evidence_packet, requires_scope_assessment
 from healthlab.editorial.recall import summary as recall_summary
@@ -124,12 +126,12 @@ class IssueDraft(EditorialDraft):
     side_news: list[SideItem] = Field(default_factory=list, max_length=10)
 
 
-def _claims(draft):
+def _claims(draft: EditorialDraft | IssueDraft) -> Iterator[DraftClaim | SideItem]:
     yield from (claim for section in draft.sections for claim in section.facts)
     yield from getattr(draft, "side_news", ())
 
 
-def time_word_findings(draft):
+def time_word_findings(draft: EditorialDraft | IssueDraft) -> list[Any]:
     """Relative time words in a draft whose evidence is dated by publication-window-1.
 
     Older drafts were written without a time basis per fact and are not checked.
@@ -147,11 +149,11 @@ def time_word_findings(draft):
     return found
 
 
-def _time_dated(by_id):
+def _time_dated(by_id: JsonObject) -> bool:
     return any(e.get("time_basis") for e in by_id.values())
 
 
-def _check(draft, evidence, records):
+def _check(draft: IssueDraft, evidence: list[JsonObject], records: JsonObject) -> JsonObject:
     by_id = {e["evidence_id"]: e for e in evidence}
     if len(by_id) != len(evidence) or not evidence:
         raise ValueError("Issue needs a nonempty evidence packet with unique IDs")
@@ -165,7 +167,7 @@ def _check(draft, evidence, records):
     return by_id
 
 
-def _sources(source_store, dataset_id):
+def _sources(source_store: RunStore, dataset_id: str) -> tuple[str, list[JsonObject]]:
     _, _, silver, gold = read_dataset(source_store, dataset_id)
     return gold.status, [
         {
@@ -181,7 +183,7 @@ def _sources(source_store, dataset_id):
     ]
 
 
-def _near_misses(packet, exclude=()):
+def _near_misses(packet: JsonObject, exclude: Collection[str] = ()) -> list[JsonObject]:
     """Articles judged on topic but held back by a gate, with their source-bound facts."""
     misses = []
     for a in packet["articles"]:
@@ -204,7 +206,9 @@ def _near_misses(packet, exclude=()):
     return misses
 
 
-def _no_release_digest(store, run, records, calls):
+def _no_release_digest(
+    store: RunStore, run: JsonObject, records: JsonObject, calls: list[JsonObject]
+) -> JsonObject:
     """Summarize a fully finished run in which no fact passed the release gates.
 
     Only a complete run may claim "no qualifying news"; a failed or unfinished call
@@ -235,7 +239,7 @@ def _no_release_digest(store, run, records, calls):
     }
 
 
-def create_issue(store, source_store, run_id):
+def create_issue(store: RunStore, source_store: RunStore, run_id: str) -> JsonObject:
     run, records = load(store, run_id)
     calls = jobs(store, run)
     drafts = [j for j in calls if j["role"] == "draft" and j["status"] == "completed"]
@@ -276,7 +280,7 @@ def create_issue(store, source_store, run_id):
     return issue
 
 
-def load_issue(store, issue_id):
+def load_issue(store: RunStore, issue_id: str) -> Any:
     issue = store.load(issue_id)
     if issue.get("mode") != MODE or issue.get("version") != VERSION:
         raise ValueError("Expected an editorial issue")
@@ -289,11 +293,12 @@ def load_issue(store, issue_id):
     return issue, draft, by_id
 
 
-def title(issue, content):
-    return NO_RELEASE_TITLE if issue.get("kind") == NO_RELEASE else content.title
+def title(issue: JsonObject, content: IssueDraft | JsonObject) -> str:
+    # The issue kind decides the content: a no-release digest is a plain object.
+    return NO_RELEASE_TITLE if issue.get("kind") == NO_RELEASE else cast(IssueDraft, content).title
 
 
-def revise(store, issue_id, content, *, expected_version):
+def revise(store: RunStore, issue_id: str, content: JsonObject, *, expected_version) -> JsonObject:
     with runner_lock(store.root):
         issue, _, _ = load_issue(store, issue_id)
         if issue.get("kind") == NO_RELEASE:
@@ -317,8 +322,15 @@ def revise(store, issue_id, content, *, expected_version):
 
 
 def promote(
-    store, issue_id, document_id, *, expected_version, fact_indexes=None, text=None, status=None
-):
+    store: RunStore,
+    issue_id: str,
+    document_id: str,
+    *,
+    expected_version,
+    fact_indexes=None,
+    text=None,
+    status=None,
+) -> JsonObject:
     """Add a held-back article's source-bound facts to the side-news section.
 
     The facts are the classifier's statements with literal quotes; nothing is rewritten by
@@ -405,7 +417,9 @@ def promote(
     return issue
 
 
-def _promote_recalled(store, issue_id, document_id, text, status, *, expected_version):
+def _promote_recalled(
+    store: RunStore, issue_id: str, document_id: str, text: str, status: str, *, expected_version
+) -> JsonObject:
     if status not in STATUS:
         raise ValueError(f"Status must be one of: {', '.join(STATUS)}")
     with runner_lock(store.root):
@@ -474,7 +488,9 @@ def _promote_recalled(store, issue_id, document_id, text, status, *, expected_ve
     return issue
 
 
-def _recall_outcomes(store, issue, by_id):
+def _recall_outcomes(
+    store: RunStore, issue: JsonObject, by_id: JsonObject | None
+) -> JsonObject | None:
     """Each recall flag and whether the approver put it in this version: implicit labels."""
     recall = recall_summary(store, issue["editorial_run_id"])
     if recall is None:
@@ -492,7 +508,7 @@ def _recall_outcomes(store, issue, by_id):
     }
 
 
-def approve(store, issue_id, *, expected_version, reviewer, rationale):
+def approve(store: RunStore, issue_id: str, *, expected_version, reviewer, rationale) -> JsonObject:
     if not reviewer.strip() or not rationale.strip():
         raise ValueError("Reviewer and rationale are required")
     with runner_lock(store.root):
@@ -527,7 +543,7 @@ def approve(store, issue_id, *, expected_version, reviewer, rationale):
     return issue
 
 
-def approval(store, issue):
+def approval(store: RunStore, issue: JsonObject) -> dict[str, str]:
     if not issue.get("approval_sha256"):
         raise ValueError("This issue version has no human approval")
     event = json.loads(store.read(issue["approval_sha256"]))
@@ -536,15 +552,17 @@ def approval(store, issue):
     return event
 
 
-def _source_numbers(draft, by_id):
-    numbers = {}
+def _source_numbers(
+    draft: EditorialDraft | IssueDraft, by_id: JsonObject
+) -> dict[str, tuple[int, JsonObject]]:
+    numbers: dict[str, tuple[int, JsonObject]] = {}
     for claim in _claims(draft):
         for eid in claim.evidence_ids:
             numbers.setdefault(by_id[eid]["url"], (len(numbers) + 1, by_id[eid]))
     return numbers
 
 
-def _quotes(e, label):
+def _quotes(e: JsonObject, label: str) -> list[str]:
     """Every source passage behind one piece of evidence, for the approval preview."""
     quotes = [(label, s["quote"]) for s in e.get("supporting_passages") or [e]]
     # A date taken from another passage is shown so the approver can check it.
@@ -556,7 +574,7 @@ def _quotes(e, label):
         f'margin:4px 0 8px;padding-left:10px">{html.escape(k)}: {html.escape(q)}</blockquote>'
         for k, q in quotes
     ]
-    basis = TIME_BASIS.get(e.get("time_basis"))
+    basis = TIME_BASIS.get(e.get("time_basis") or "")
     if basis:
         parts.append(
             '<p style="color:#555;font-size:14px;margin:0 0 6px 13px">'
@@ -567,7 +585,9 @@ def _quotes(e, label):
     return parts
 
 
-def _draft_body(draft, by_id, evidence_quotes):
+def _draft_body(
+    draft: EditorialDraft | IssueDraft, by_id: JsonObject, evidence_quotes: bool
+) -> tuple[list[str], list[str], str]:
     esc = html.escape
     numbers = _source_numbers(draft, by_id)
     lines, parts = [], []
@@ -621,7 +641,7 @@ def _draft_body(draft, by_id, evidence_quotes):
     return lines, parts, "AI hỗ trợ trích dẫn và soạn thảo; mọi dữ kiện dẫn về đoạn nguồn đã lưu."
 
 
-def _no_release_body(digest):
+def _no_release_body(digest: JsonObject) -> tuple[list[str], list[str], str]:
     esc = html.escape
     scan = (
         f"Đã quét {digest['articles']} bài, phân loại {digest['classified']}, "
@@ -647,7 +667,7 @@ def _no_release_body(digest):
     return lines, parts, "AI hỗ trợ phân loại và kiểm tra; không có dữ kiện nào được phát hành."
 
 
-def _promote_command(issue, document_id):
+def _promote_command(issue: JsonObject, document_id: str) -> str:
     return (
         f"python -m healthlab.editorial.issue --store STORE --source-store DATA promote "
         f"{issue['run_id']} --expected-version {issue['issue_sha256']} "
@@ -655,7 +675,9 @@ def _promote_command(issue, document_id):
     )
 
 
-def _recall_body(issue, recall, flags, *, can_promote):
+def _recall_body(
+    issue: JsonObject, recall: JsonObject, flags: list[JsonObject], *, can_promote
+) -> list[str]:
     """Preview-only: articles a second model thinks were missed; never in the sent email."""
     esc = html.escape
     progress = f"{recall['completed']}/{recall['targets']} bài bị loại đã được rà"
@@ -707,7 +729,9 @@ def _recall_body(issue, recall, flags, *, can_promote):
     return parts
 
 
-def _near_miss_body(issue, misses, recalled=frozenset()):
+def _near_miss_body(
+    issue: JsonObject, misses: list[JsonObject], recalled: Collection[str] = frozenset()
+) -> list[str]:
     """Preview-only list the approver can promote from; never part of the sent email."""
     esc = html.escape
     heading = "Bài đúng chủ đề nhưng bị chặn (chỉ người duyệt thấy)"
@@ -747,7 +771,7 @@ def _near_miss_body(issue, misses, recalled=frozenset()):
     return parts
 
 
-def _time_word_body(found):
+def _time_word_body(found: list[tuple[str, str]]) -> list[str]:
     """Preview-only warning; approval is refused until a revision removes these words."""
     esc = html.escape
     items = "".join(f"<li>{esc(where)}: «{esc(word)}»</li>" for where, word in found)
@@ -760,16 +784,16 @@ def _time_word_body(found):
 
 
 def render(
-    issue,
-    content,
-    by_id,
+    issue: JsonObject,
+    content: IssueDraft | JsonObject,
+    by_id: JsonObject | None,
     *,
     approved=None,
     evidence_quotes=False,
     near_misses=(),
     time_words=(),
     recall=None,
-):
+) -> tuple[str, str]:
     esc = html.escape
     period = issue["question"]
     label = "Đã duyệt nội bộ" if approved else "BẢN NHÁP AI — CHƯA ĐƯỢC DUYỆT"
@@ -793,11 +817,13 @@ def render(
     ]
     if time_words:
         parts += _time_word_body(time_words)
-    body_lines, body_parts, footer = (
-        _no_release_body(content)
-        if issue.get("kind") == NO_RELEASE
-        else _draft_body(content, by_id, evidence_quotes)
-    )
+    if issue.get("kind") == NO_RELEASE:
+        body_lines, body_parts, footer = _no_release_body(cast(JsonObject, content))
+    else:
+        assert by_id is not None  # A release draft always comes with its evidence.
+        body_lines, body_parts, footer = _draft_body(
+            cast(IssueDraft, content), by_id, evidence_quotes
+        )
     lines += body_lines
     parts += body_parts
     recalled = {f["document_id"] for f in (recall or {}).get("flags", ())}
@@ -808,7 +834,7 @@ def render(
             e["document_id"] for e in (by_id or {}).values()
         }
         if issue.get("kind") == NO_RELEASE:
-            shown |= {a["document_id"] for a in content["watchlist"]}
+            shown |= {a["document_id"] for a in cast(JsonObject, content)["watchlist"]}
         flags = [f for f in recall["flags"] if f["document_id"] not in shown]
         parts += _recall_body(issue, recall, flags, can_promote=issue.get("kind") != NO_RELEASE)
     lines += [
@@ -834,11 +860,12 @@ def render(
     return "\n".join(lines), "\n".join(parts)
 
 
-def render_preview(store, issue_id):
+def render_preview(store: RunStore, issue_id: str) -> Path:
     issue, draft, by_id = load_issue(store, issue_id)
     directory = store.root / "runs" / issue_id
     text, _ = render(issue, draft, by_id)
-    misses, found = (), ()
+    misses: Sequence[JsonObject] = ()
+    found: Sequence[Any] = ()
     if issue.get("kind") != NO_RELEASE:
         packet = evidence_packet(store, issue["editorial_run_id"])
         misses = _near_misses(packet, {e["document_id"] for e in by_id.values()})
@@ -863,7 +890,9 @@ def render_preview(store, issue_id):
     return directory / "newsletter.html"
 
 
-def prepare_email(store, issue_id, sender, recipient):
+def prepare_email(
+    store: RunStore, issue_id: str, sender: str, recipient: str
+) -> tuple[MIMEMultipart, str]:
     issue, draft, by_id = load_issue(store, issue_id)
     event = approval(store, issue)
     mailbox(sender)
@@ -884,7 +913,7 @@ def prepare_email(store, issue_id, sender, recipient):
     message = MIMEMultipart("alternative")
     message["From"] = sender
     message["To"] = recipient
-    message["Subject"] = Header(
+    message["Subject"] = Header(  # type: ignore[assignment]  # compat32 accepts a Header.
         f"HealthLab Signal · {title(issue, draft)} · {issue['question']['maxdate']}", "utf-8"
     )
     message["Date"] = formatdate(localtime=False, usegmt=True)
@@ -894,7 +923,7 @@ def prepare_email(store, issue_id, sender, recipient):
     return message, key
 
 
-def export_email(store, issue_id, sender, recipients):
+def export_email(store: RunStore, issue_id: str, sender: str, recipients: list[str]) -> list[str]:
     if not recipients:
         raise ValueError("At least one recipient is required")
     paths = []
@@ -906,7 +935,15 @@ def export_email(store, issue_id, sender, recipients):
     return paths
 
 
-def send_gmail(store, issue_id, sender, recipients, app_password, *, smtp_factory=None):
+def send_gmail(
+    store: RunStore,
+    issue_id: str,
+    sender: str,
+    recipients: list[str],
+    app_password: str,
+    *,
+    smtp_factory=None,
+) -> list[JsonObject]:
     if not recipients or not app_password:
         raise ValueError("Sender, recipients and Gmail app password are required")
     if not sender.lower().endswith("@gmail.com"):

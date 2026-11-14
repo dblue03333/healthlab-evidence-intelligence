@@ -1,12 +1,15 @@
 """Audited candidate memory. Historical listings are evidence, not fresh discovery."""
 
 import json
+from datetime import date
 
-from healthlab.signal.contracts import Registry
+from healthlab.common import JsonObject
+from healthlab.signal.contracts import Registry, Source
+from healthlab.signal.storage import CollectionStorage
 from healthlab.store import json_bytes
 
 
-def source_scope(source):
+def source_scope(source: Source) -> JsonObject:
     """Operational budgets may change without forgetting the same source scope."""
     value = source.model_dump()
     for key in (
@@ -31,15 +34,17 @@ def source_scope(source):
     return value
 
 
-def candidate_history(storage, registry, mindate, maxdate):
+def candidate_history(
+    storage: CollectionStorage, registry: Registry, mindate: date, maxdate: date
+) -> JsonObject:
     """Called under the collection lock; capture compatible finished observations.
 
     Older windows remain available for later backfills. Unknown dates in an
     overlapping window are retained, never converted into an editorial exclude.
     """
     sources = {s.source_id: s for s in registry.sources if s.enabled and s.kind == "html"}
-    found = {key: {} for key in sources}
-    latest = {key: {} for key in sources}
+    found: dict[str, JsonObject] = {key: {} for key in sources}
+    latest: dict[str, JsonObject] = {key: {} for key in sources}
     runs = [storage.load(i) for i in storage.state.list_runs("signal_collection")]
     for run in sorted(
         runs, key=lambda r: (r.get("observed_at", r["created_at"]), r["created_at"], r["run_id"])

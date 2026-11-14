@@ -6,10 +6,11 @@ A clean review is an AI proposal, not a human approval or a factual guarantee.
 
 import re
 import unicodedata
-from typing import Literal
+from typing import Any, Literal, Self
 
 from pydantic import Field, StrictInt, model_validator
 
+from healthlab.common import JsonObject
 from healthlab.editorial.context import (
     FACETS,
     ContextAssessment,
@@ -80,20 +81,25 @@ _RELATIVE_TIME = re.compile(
 )
 
 
-def relative_time_words(text):
+def relative_time_words(text: str) -> list[Any]:
     """Relative time words in one piece of draft text, in order of appearance."""
     return [m.group(0) for m in _RELATIVE_TIME.finditer(unicodedata.normalize("NFC", text))]
 
 
-def ai_review_required(version):
+def ai_review_required(version: str) -> bool:
     return version not in TOPIC_ONLY_VERSIONS
 
 
-def published_in_window(publication_date, window):
+def published_in_window(publication_date: str | None, window: JsonObject) -> bool:
     return bool(publication_date) and window["mindate"] <= publication_date <= window["maxdate"]
 
 
-def fact_time_basis(event_date, literal_date_supported, publication_date, window):
+def fact_time_basis(
+    event_date: str | None,
+    literal_date_supported: bool,
+    publication_date: str | None,
+    window: JsonObject,
+) -> str | None:
     """How the writer must date one fact, or None when the fact cannot count as current.
 
     A literal event date wins. An undated fact falls back to the article's publication date,
@@ -111,7 +117,7 @@ def fact_time_basis(event_date, literal_date_supported, publication_date, window
     return "publication_date" if published_in_window(publication_date, window) else None
 
 
-def current_basis(basis, publication_date, window):
+def current_basis(basis: str | None, publication_date: str | None, window: JsonObject) -> bool:
     """True when a fact with this basis can be reported as news of the period."""
     if basis == "event_date_in_window":
         return True
@@ -122,13 +128,14 @@ def current_basis(basis, publication_date, window):
     )
 
 
-def fact_date_supported(fact, *, policy=None, publication_date=None):
+def fact_date_supported(fact: JsonObject, *, policy=None, publication_date=None) -> bool:
     """Literal-date check; the caller must validate context identity against source.
 
     With the current date policy a yearless day/month resolved from the publication year
     also counts; such dates carry basis=inferred_from_publication_year in the date catalog.
     """
-    quote = (fact.get("date_evidence") or {}).get("quote", fact["quote"])
+    evidence: JsonObject = fact.get("date_evidence") or {}
+    quote = evidence["quote"] if "quote" in evidence else fact["quote"]
     return fact.get("event_date") in {
         d["date"]
         for d in editorial_literal_dates(quote, policy=policy, publication_date=publication_date)
@@ -165,7 +172,7 @@ class Review(Contract):
     rationale: str = Field(min_length=1, max_length=1800)
 
     @model_validator(mode="after")
-    def coherent(self):
+    def coherent(self) -> Self:
         if self.newsletter_eligible and (
             self.relevance != "relevant"
             or not self.supported_fact_indexes
@@ -223,22 +230,22 @@ class CitationFinding(CurrentBlockingFinding):
         "citation_incomplete",
         "contradiction",
         "other",
-    ]
+    ]  # type: ignore[assignment]  # A later contract version narrows the field.
 
 
 class CitationReview(SemanticReview):
-    review_version: Literal["editorial-review-5"]
+    review_version: Literal["editorial-review-5"]  # type: ignore[assignment]  # A later contract version narrows the field.
     supported_citation_fact_indexes: list[StrictInt] = Field(max_length=5)
-    blocking_findings: list[CitationFinding] = Field(max_length=10)
+    blocking_findings: list[CitationFinding] = Field(max_length=10)  # type: ignore[assignment]  # A later contract version narrows the field.
 
 
 class ReviewedCitations(Review):
-    review_version: Literal["editorial-review-5"]
+    review_version: Literal["editorial-review-5"]  # type: ignore[assignment]  # A later contract version narrows the field.
     supported_citation_fact_indexes: list[StrictInt] = Field(max_length=5)
-    blocking_findings: list[CitationFinding] = Field(max_length=10)
+    blocking_findings: list[CitationFinding] = Field(max_length=10)  # type: ignore[assignment]  # A later contract version narrows the field.
 
     @model_validator(mode="after")
-    def citation_indexes(self):
+    def citation_indexes(self) -> Self:
         indexes = self.supported_citation_fact_indexes
         if len(indexes) != len(set(indexes)) or not set(indexes) <= set(
             self.supported_fact_indexes
@@ -248,16 +255,16 @@ class ReviewedCitations(Review):
 
 
 class ContextReview(CitationReview):
-    review_version: Literal["editorial-review-6"]
+    review_version: Literal["editorial-review-6"]  # type: ignore[assignment]  # A later contract version narrows the field.
     context_assessments: list[ContextAssessment] = Field(max_length=5)
 
 
 class ReviewedContext(ReviewedCitations):
-    review_version: Literal["editorial-review-6"]
+    review_version: Literal["editorial-review-6"]  # type: ignore[assignment]  # A later contract version narrows the field.
     context_assessments: list[ContextAssessment] = Field(max_length=5)
 
 
-def context_supported(proposal, review):
+def context_supported(proposal: JsonObject, review: JsonObject) -> bool:
     assessments = {a["fact_index"]: a for a in review["context_assessments"]}
     return all(
         all(assessments[index][facet] != "missing" for facet in FACETS)
@@ -265,7 +272,7 @@ def context_supported(proposal, review):
     )
 
 
-def fact_date_checks(proposal, window):
+def fact_date_checks(proposal: JsonObject, window: JsonObject) -> list[Any]:
     """Arithmetic only; literal identity never proves that a date is this event's.
 
     fact-context-2 adds a lexical range-endpoint flag; earlier contracts keep the exact
@@ -310,8 +317,12 @@ def fact_date_checks(proposal, window):
     return checks
 
 
-def supported_development(proposal, review, window):
-    return bool(window) and any(
+def supported_development(
+    proposal: JsonObject, review: JsonObject, window: JsonObject | None
+) -> bool:
+    if not window:
+        return False
+    return any(
         check["literal_date_supported"]
         and check["inside_inclusive_window"] is True
         and (
@@ -323,7 +334,7 @@ def supported_development(proposal, review, window):
     )
 
 
-def fact_release(proposal, review, window):
+def fact_release(proposal: JsonObject, review: JsonObject, window: JsonObject) -> list[JsonObject]:
     """Per-fact release under fact-flags-1; review must already be validated.
 
     A fact is dropped only by a reviewer finding that names it, or when its cross-passage
@@ -378,7 +389,12 @@ def fact_release(proposal, review, window):
     return result
 
 
-def validate_review(payload, proposal, passage_ids, window=None):
+def validate_review(
+    payload: JsonObject,
+    proposal: JsonObject,
+    passage_ids: list[str],
+    window: JsonObject | None = None,
+) -> JsonObject:
     contextual = payload.get("review_version") == "editorial-review-6"
     citations = payload.get("review_version") in {"editorial-review-5", "editorial-review-6"}
     current = payload.get("review_version") in {
@@ -395,7 +411,9 @@ def validate_review(payload, proposal, passage_ids, window=None):
     semantic_model = (
         ContextReview if contextual else CitationReview if citations else SemanticReview
     )
-    review_model = ReviewedContext if contextual else ReviewedCitations if citations else Review
+    review_model: type[Review] = (
+        ReviewedContext if contextual else ReviewedCitations if citations else Review
+    )
     supplied_eligibility = payload.get("newsletter_eligible")
     if current:
         if window is None:
@@ -407,7 +425,7 @@ def validate_review(payload, proposal, passage_ids, window=None):
     review = review_model.model_validate(payload)
     if citations and any(not fact.get("supporting_passages") for fact in proposal["facts"]):
         raise ValueError("Citation review requires explicit fact support passages")
-    if contextual:
+    if isinstance(review, ReviewedContext):  # The model chosen for an editorial-review-6 payload.
         assessments = {a.fact_index: a for a in review.context_assessments}
         if len(assessments) != len(review.context_assessments) or set(assessments) != set(
             range(len(proposal["facts"]))
@@ -439,6 +457,7 @@ def validate_review(payload, proposal, passage_ids, window=None):
     if any(i < 0 or i >= len(proposal["facts"]) for i in indexes):
         raise ValueError("Invalid review fact index")
     if current:
+        assert window is not None  # A current review without its window was rejected above.
         checks = fact_date_checks(proposal, window)
         for finding in review.blocking_findings:
             if citations and finding.code == "citation_incomplete":
@@ -466,7 +485,7 @@ def validate_review(payload, proposal, passage_ids, window=None):
             and review.supported_fact_indexes
             and not review.blocking_findings
             and (
-                not citations
+                not isinstance(review, ReviewedCitations)
                 or set(review.supported_fact_indexes) <= set(review.supported_citation_fact_indexes)
             )
             and supported_development(proposal, value, window)
@@ -479,7 +498,7 @@ def validate_review(payload, proposal, passage_ids, window=None):
     return review.model_dump()
 
 
-def topic_gate(proposal, window):
+def topic_gate(proposal: JsonObject, window: JsonObject) -> JsonObject:
     """Release gate under topic-only-1 and publication-window-1; the scope gate is combined
     by the caller."""
     by_publication = proposal.get("release_policy") == PUBLICATION_WINDOW_POLICY
@@ -526,7 +545,12 @@ def topic_gate(proposal, window):
     }
 
 
-def review_gate(proposal, review, passage_ids, window=None):
+def review_gate(
+    proposal: JsonObject,
+    review: Any,
+    passage_ids: list[str],
+    window: JsonObject | None = None,
+) -> JsonObject:
     if review is None:
         return {"eligible": False, "reasons": ["review_missing"]}
     if review.get("review_version") not in READ_REVIEW_VERSIONS:
@@ -562,7 +586,7 @@ def review_gate(proposal, review, passage_ids, window=None):
     return {"eligible": not reasons, "reasons": reasons}
 
 
-def _flag_gate(proposal, value, window):
+def _flag_gate(proposal: JsonObject, value: JsonObject, window: JsonObject | None) -> JsonObject:
     reasons = []
     if not proposal["newsletter_candidate"]:
         reasons.append("primary_not_newsletter_candidate")

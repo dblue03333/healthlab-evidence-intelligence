@@ -1,7 +1,7 @@
 """Small persisted contracts. Query context belongs to a run, never a document."""
 
 from datetime import date
-from typing import Literal
+from typing import Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -22,17 +22,17 @@ class Question(Contract):
     maxdate: date | None = None
 
     @model_validator(mode="after")
-    def validate_scope(self):
+    def validate_scope(self) -> Self:
         if not self.query.strip() or not self.raw_question.strip():
             raise ValueError("question and query must contain text")
         if (self.mindate is None) != (self.maxdate is None):
             raise ValueError("mindate and maxdate must be supplied together")
-        if self.mindate and self.mindate > self.maxdate:
+        if self.mindate and self.maxdate and self.mindate > self.maxdate:
             raise ValueError("mindate must not be later than maxdate")
         return self
 
-    def search_params(self) -> dict:
-        params = {
+    def search_params(self) -> dict[str, Any]:
+        params: dict[str, Any] = {
             "db": "pubmed",
             "term": self.query,
             "retmode": "json",
@@ -40,7 +40,7 @@ class Question(Contract):
             "retmax": 5,
             "sort": self.sort,
         }
-        if self.mindate:
+        if self.mindate and self.maxdate:  # Validation keeps both set or both empty.
             params.update(
                 mindate=self.mindate.strftime("%Y/%m/%d"),
                 maxdate=self.maxdate.strftime("%Y/%m/%d"),
@@ -74,7 +74,7 @@ class Document(Contract):
 class IngestionError(Exception):
     """Safe, stable errors: never wrap a request URL containing credentials."""
 
-    def __init__(self, code: str, message: str):
+    def __init__(self, code: str, message: str) -> None:
         super().__init__(message)
         self.code = code
 

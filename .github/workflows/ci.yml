@@ -28,6 +28,7 @@ jobs:
       - run: uv sync --locked --extra dev --extra cloud
       - run: uv run --locked ruff check src tests scripts
       - run: uv run --locked ruff format --check src tests scripts
+      - run: uv run --locked mypy
       - run: uv run --locked python scripts/ci_checks.py
 
   postgres:

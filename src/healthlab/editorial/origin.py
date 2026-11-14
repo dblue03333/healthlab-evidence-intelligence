@@ -7,6 +7,7 @@ other footer, or one without a readable host, keeps the existing block.
 """
 
 import re
+from typing import Any
 
 TRUSTED_FOOTER_HOSTS = (
     "suckhoedoisong.vn",
@@ -25,17 +26,18 @@ _FOOTER = re.compile(r"(?:Nguồn|Theo)\s*:\s*[^\n]+", re.I)
 _HOST = re.compile(r"[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}", re.I)
 
 
-def _trusted(host):
+def _trusted(host: str) -> bool:
     host = host.lower()
     return any(host == t or host.endswith("." + t) for t in TRUSTED_FOOTER_HOSTS)
 
 
-def footer_attributions(body):
+def footer_attributions(body: str) -> tuple[bool, list[str], bool] | tuple[bool, list[Any], bool]:
     """Return (has_footer, trusted_hosts, all_trusted) for the last 2500 characters."""
     matches = list(_FOOTER.finditer(body[-2500:]))
     if not matches:
         return False, [], True
-    hosts, all_trusted = [], True
+    hosts: list[str] = []
+    all_trusted = True
     for match in matches:
         found = _HOST.findall(match[0])
         if not found or not all(_trusted(h) for h in found):

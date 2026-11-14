@@ -4,13 +4,14 @@ import logging
 import os
 import subprocess
 import sys
+from collections.abc import Iterator
 from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
 
 
 @contextmanager
-def awake_for_cli():
+def awake_for_cli() -> Iterator[None]:
     process = None
     if sys.platform == "darwin":
         try:

@@ -1,7 +1,7 @@
 """Medallion contracts. A ready dataset certifies its captured scope only."""
 
 from datetime import date
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Self
 
 from pydantic import Field, model_validator
 
@@ -22,7 +22,7 @@ class Window(Contract):
     inclusive: Literal[True] = True
 
     @model_validator(mode="after")
-    def ordered(self):
+    def ordered(self) -> Self:
         if self.mindate > self.maxdate:
             raise ValueError("Invalid publication window")
         return self

@@ -1,6 +1,9 @@
 """Versioned editorial text slices with exact offsets; no extraction or inference."""
 
 import re
+from typing import Any
+
+from healthlab.common import JsonObject
 
 POLICY = "editorial-passages-2"
 MAX_PASSAGE_CHARS = 1800
@@ -30,15 +33,17 @@ _BOUNDARY = re.compile(r"(?<=[.!?])\s+|\n+")
 _TOKEN = re.compile(r"(?:^|[\s(\[“\"'])([\w.]+)\.$")
 
 
-def _nonterminal_period(text, boundary):
+def _nonterminal_period(text: str, boundary: re.Match) -> bool:
     if "\n" in boundary.group() or text[boundary.start() - 1] != ".":
         return False
     # Titles such as PGS.TS. are one token; every component must be recognized.
     token = _TOKEN.search(text[max(0, boundary.start() - 80) : boundary.start()])
-    return bool(token) and all(part.casefold() in _NONTERMINAL for part in token[1].split("."))
+    return token is not None and all(
+        part.casefold() in _NONTERMINAL for part in token[1].split(".")
+    )
 
 
-def editorial_passages(text):
+def editorial_passages(text: str) -> list[Any]:
     """Keep abbreviation continuations together, preserving all nonspace text.
 
     Explicit newlines still end a unit. Long sentences are bounded by the same
@@ -52,7 +57,7 @@ def editorial_passages(text):
         spans.append((start, boundary.start()))
         start = boundary.end()
     spans.append((start, len(text)))
-    units = []
+    units: list[JsonObject] = []
     for start, end in spans:
         while start < end:
             stop = min(start + MAX_PASSAGE_CHARS, end)
@@ -75,7 +80,7 @@ def editorial_passages(text):
     return units
 
 
-def source_passages(document):
+def source_passages(document: Any) -> list[JsonObject]:
     """Deterministic sentence-like slices. IDs resolve to exact Unicode offsets."""
     text = document.text
     spans, start = [], 0
@@ -83,7 +88,7 @@ def source_passages(document):
         spans.append((start, boundary.start()))
         start = boundary.end()
     spans.append((start, len(text)))
-    units = []
+    units: list[JsonObject] = []
     for start, end in spans:
         while start < end:
             stop = min(start + 1800, end)

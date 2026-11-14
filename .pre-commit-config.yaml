@@ -32,3 +32,10 @@ repos:
         language: system
         types: [python]
         files: ^(src|tests|scripts)/
+      - id: mypy
+        name: mypy
+        entry: uv run --locked mypy
+        language: system
+        types: [python]
+        files: ^src/
+        pass_filenames: false # Checks the whole package, so cross-module types stay consistent.

@@ -9,13 +9,15 @@ import os
 import re
 import tempfile
 import uuid
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from datetime import UTC, date, datetime, timedelta
 from html import escape
 from pathlib import Path
+from typing import Any
 from zoneinfo import ZoneInfo
 
-from healthlab.common import configure_logging
+from healthlab.common import JsonObject, configure_logging
 from healthlab.data.bundle import export_dataset, verify_export
 from healthlab.data.datasets import build_dataset, read_dataset, summary
 from healthlab.data.power import awake_for_cli
@@ -31,6 +33,7 @@ from healthlab.signal.contracts import Registry
 from healthlab.signal.diagnostics import Span, exception_diagnostic
 from healthlab.signal.history import source_scope
 from healthlab.signal.html_adapter import PARSER_VERSION
+from healthlab.signal.source_http import FetchPolicy
 from healthlab.signal.storage import atomic_json, collection_storage
 from healthlab.store import RunStore, json_bytes, sync_directory
 
@@ -40,15 +43,15 @@ VERSION = "data-pilot-1"
 TIMEZONE = "Asia/Ho_Chi_Minh"
 
 
-def sha(value):
+def sha(value: dict[str, str] | list[JsonObject] | JsonObject) -> str:
     return hashlib.sha256(json_bytes(value)).hexdigest()
 
 
-def now_iso():
+def now_iso() -> str:
     return datetime.now(UTC).isoformat()
 
 
-def daily_window(as_of=None, *, days=14, now=None):
+def daily_window(as_of: date | None = None, *, days=14, now=None) -> tuple[date, date, date]:
     if not 1 <= days <= 366:
         raise ValueError("Window must contain 1 to 366 days")
     if now is not None and now.tzinfo is None:
@@ -61,7 +64,7 @@ def daily_window(as_of=None, *, days=14, now=None):
     return as_of, maximum - timedelta(days=days - 1), maximum
 
 
-def runtime_fingerprint():
+def runtime_fingerprint() -> str:
     root = Path(__file__).resolve().parents[1]
     paths = sorted((root / "data").glob("*.py")) + sorted((root / "signal").glob("*.py"))
     paths += [root / "store.py", root / "models.py"]
@@ -71,7 +74,7 @@ def runtime_fingerprint():
 
 
 @contextmanager
-def runner_lock(root):
+def runner_lock(root: Path) -> Iterator[None]:
     # Distinct from signal.lock. Collector acquires its own lock inside this one.
     # No collector callback ever attempts to acquire runner_lock in reverse order.
     with (root / "pilot.lock").open("a") as handle:
@@ -85,14 +88,14 @@ def runner_lock(root):
             fcntl.flock(handle, fcntl.LOCK_UN)
 
 
-def _load(path):
+def _load(path: Path) -> JsonObject:
     value = json.loads(path.read_bytes())
     if not isinstance(value, dict):
         raise ValueError("Invalid pilot JSON object")
     return value
 
 
-def _journal(directory, config, *, fresh):
+def _journal(directory: Path, config: JsonObject, *, fresh) -> Any:
     directory.mkdir(parents=True, exist_ok=True)
     pointer = directory / "current.json"
     previous = None
@@ -111,7 +114,7 @@ def _journal(directory, config, *, fresh):
     attempt = uuid.uuid4().hex
     folder = directory / attempt
     folder.mkdir()
-    journal = {
+    journal: JsonObject = {
         "schema_version": VERSION,
         "attempt_id": attempt,
         "config": config,
@@ -132,7 +135,9 @@ def _journal(directory, config, *, fresh):
     return path, journal
 
 
-def _ensure_collection(store, journal, save, *, repair, client, on_started):
+def _ensure_collection(
+    store: RunStore, journal: JsonObject, save: Callable, *, repair, client, on_started
+) -> JsonObject:
     field = "repair_collection_id" if repair else "collection_id"
     operation = sha({"attempt_id": journal["attempt_id"], "phase": field})
     storage = collection_storage(store)
@@ -204,13 +209,13 @@ def _ensure_collection(store, journal, save, *, repair, client, on_started):
     )
 
 
-def _fetch_policy(value):
+def _fetch_policy(value: JsonObject) -> FetchPolicy:
     from healthlab.signal.source_http import FetchPolicy
 
     return FetchPolicy(**value)
 
 
-def _retryable_missing(store, run):
+def _retryable_missing(store: RunStore, run: JsonObject) -> bool:
     if run["status"] == "completed":
         return False
     for check in run["source_checks"]:
@@ -230,7 +235,7 @@ def _retryable_missing(store, run):
     return False
 
 
-def _dataset(store, collection_id):
+def _dataset(store: RunStore, collection_id: str) -> JsonObject:
     storage = collection_storage(store)
     with storage.state.lock():
         published = {
@@ -253,7 +258,7 @@ def _dataset(store, collection_id):
     return summary(identifier, bronze, silver, gold)
 
 
-def _previous(root, journal):
+def _previous(root: Path, journal: JsonObject) -> JsonObject | None:
     candidates = []
     for path in (root / "pilot").glob("*/*/*/journal.json"):
         row = _load(path)
@@ -268,7 +273,7 @@ def _previous(root, journal):
     return max(candidates, key=lambda r: (r["created_at"], r["attempt_id"]), default=None)
 
 
-def dataset_delta(store, current_id, previous_id):
+def dataset_delta(store: RunStore, current_id: str, previous_id: str | None) -> JsonObject:
     _, _, current, current_gold = read_dataset(store, current_id)
     if previous_id is None:
         return {"baseline_only": True, "previous_dataset_id": None}
@@ -310,7 +315,7 @@ def dataset_delta(store, current_id, previous_id):
     }
 
 
-def _metrics(store, journal):
+def _metrics(store: RunStore, journal: JsonObject) -> JsonObject:
     attempts = []
     for field in ("collection_id", "repair_collection_id"):
         if journal.get(field):
@@ -331,7 +336,7 @@ def _metrics(store, journal):
     }
 
 
-def _html(result):
+def _html(result: JsonObject) -> str:
     return (
         '<!doctype html><html lang="vi"><meta charset="utf-8"><title>HealthLab pilot</title>'
         '<body style="font:16px system-ui;max-width:1100px;margin:32px auto;padding:20px">'
@@ -344,7 +349,7 @@ def _html(result):
     )
 
 
-def _atomic_report(path, content):
+def _atomic_report(path: Path, content: bytes) -> None:
     descriptor, temporary = tempfile.mkstemp(dir=path.parent)
     try:
         with os.fdopen(descriptor, "wb") as handle:
@@ -359,7 +364,7 @@ def _atomic_report(path, content):
 
 
 @contextmanager
-def measured_stage(journal, save, name):
+def measured_stage(journal: JsonObject, save: Callable, name: str) -> Iterator[None]:
     journal["stage"] = name
     event = {"stage": name, "status": "started"}
     journal.setdefault("stage_timings", []).append(event)
@@ -377,8 +382,8 @@ def measured_stage(journal, save, name):
 
 
 def run_pilot(
-    store,
-    registry,
+    store: RunStore,
+    registry: Registry,
     *,
     as_of=None,
     days=14,
@@ -389,7 +394,7 @@ def run_pilot(
     rss_client=None,
     on_started=None,
     now=None,
-):
+) -> JsonObject:
     if not isinstance(store, RunStore):
         raise ValueError("Pilot runner currently requires a local RunStore")
     enabled = [s for s in registry.sources if s.enabled]
@@ -432,7 +437,7 @@ def run_pilot(
                 "pilot_pending_attempt",
                 "Resume the pending date/configuration before starting another logical run",
             )
-            exc._healthlab_incident = record_operation_failure(
+            exc._healthlab_incident = record_operation_failure(  # type: ignore[attr-defined]
                 store,
                 "pending_attempt",
                 exc,
@@ -546,7 +551,8 @@ def run_pilot(
             )
             save()
             try:
-                exc._healthlab_incident = record_pilot_failure(store, journal, exc)
+                incident = record_pilot_failure(store, journal, exc)
+                exc._healthlab_incident = incident  # type: ignore[attr-defined]
             except Exception as incident_exc:
                 # Disk/ledger failure must never silently imply that an incident
                 # was persisted, or replace the original collection exception.
@@ -557,7 +563,7 @@ def run_pilot(
             raise
 
 
-def _main(argv=None):
+def _main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--store", type=Path, default=Path("outputs/data_20261026"))
     parser.add_argument("--registry", type=Path, default=Path("config/signal_sources.json"))
@@ -615,7 +621,7 @@ def _main(argv=None):
         return 2 if isinstance(exc, IngestionError) and exc.code == "pilot_busy" else 1
 
 
-def main(argv=None):
+def main(argv: list[str] | None = None) -> int:
     configure_logging()
     with awake_for_cli():
         return _main(argv)
