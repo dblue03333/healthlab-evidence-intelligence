@@ -6,8 +6,10 @@ import os
 import shutil
 import tempfile
 from pathlib import Path
+from typing import cast
 
-from healthlab.data.contracts import Digest
+from healthlab.common import JsonObject
+from healthlab.data.contracts import Bronze, Digest, Gold, NewsletterObservation, Silver
 from healthlab.data.datasets import read_dataset, summary, verify_objects
 from healthlab.models import Contract
 from healthlab.signal.backup import _write
@@ -21,7 +23,7 @@ class Bundle(Contract):
     objects: list[Digest]
 
 
-def render_report(dataset_id, bronze, silver, gold):
+def render_report(dataset_id: str, bronze: Bronze, silver: Silver, gold: Gold) -> str:
     newsletter = gold.window.basis == "configured_source_calendar_date"
 
     def esc(value):
@@ -31,11 +33,14 @@ def render_report(dataset_id, bronze, silver, gold):
     for record in silver.records:
         if record.outcome == "outside_window":
             continue
+        if newsletter:  # A newsletter dataset stores newsletter observations.
+            shown = cast(NewsletterObservation, record)
+            day, basis = shown.selection_date, f"<br>{esc(shown.selection_date_basis)}"
+        else:
+            day, basis = record.publication_date, ""
         rows.append(
             f"<tr><td>{esc(record.source_id)}</td><td>{esc(record.outcome)}</td>"
-            f"<td>{esc((record.selection_date if newsletter else record.publication_date) or 'unknown')}"
-            + (f"<br>{esc(record.selection_date_basis)}" if newsletter else "")
-            + "</td>"
+            f"<td>{esc(day or 'unknown')}" + basis + "</td>"
             f'<td><a href="{esc(record.url)}">{esc(record.title or record.url)}</a>'
             f"<details><summary>Saved text and provenance</summary><pre>{esc(record.body or 'No readable text')}</pre>"
             f"<pre>{esc(json.dumps(record.model_dump(mode='json', exclude={'body'}), ensure_ascii=False, indent=2))}</pre>"
@@ -71,7 +76,7 @@ def render_report(dataset_id, bronze, silver, gold):
     )
 
 
-def export_dataset(store, dataset_id, destination):
+def export_dataset(store: RunStore, dataset_id: str, destination: Path) -> JsonObject:
     storage = collection_storage(store)
     _, bronze, silver, gold = read_dataset(store, dataset_id)
     destination = Path(destination).resolve()
@@ -125,7 +130,7 @@ def export_dataset(store, dataset_id, destination):
     }
 
 
-def verify_export(directory):
+def verify_export(directory: Path) -> JsonObject:
     directory = Path(directory)
     inventory = Bundle.model_validate_json((directory / "dataset-bundle.json").read_bytes())
     if inventory.schema_version != "dataset-bundle-1":

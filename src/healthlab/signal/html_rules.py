@@ -3,15 +3,16 @@
 import json
 import re
 from importlib.resources import files
-from typing import Literal
+from typing import Any, Literal, Self
 from urllib.parse import urlsplit
 
 from pydantic import Field, field_validator, model_validator
 
 from healthlab.models import Contract
+from healthlab.signal.html_tree import Element
 
 
-def checked_pattern(value):
+def checked_pattern(value: str) -> str:
     if not value or len(value) > 512:
         raise ValueError("Patterns must contain 1–512 characters")
     try:
@@ -29,7 +30,7 @@ class ElementSelector(Contract):
     attributes: dict[str, str] = Field(default_factory=dict)
 
     @model_validator(mode="after")
-    def specific(self):
+    def specific(self) -> Self:
         if not (self.tag or self.classes or self.attributes):
             raise ValueError("Selector must identify a tag, class or attribute")
         if self.tag and not re.fullmatch(r"[a-z][a-z0-9-]*", self.tag):
@@ -40,7 +41,7 @@ class ElementSelector(Contract):
             raise ValueError("Invalid selector attribute name")
         return self
 
-    def matches(self, node):
+    def matches(self, node: Element) -> bool:
         return (
             (self.tag is None or node.tag == self.tag)
             and set(self.classes).issubset(node.attrs.get("class", "").split())
@@ -48,7 +49,7 @@ class ElementSelector(Contract):
         )
 
     @property
-    def locator(self):
+    def locator(self) -> str:
         return (
             (self.tag or "")
             + "".join("." + name for name in self.classes)
@@ -66,23 +67,23 @@ class ArticleURLRules(Contract):
 
     @field_validator("include_path_patterns", "exclude_path_patterns")
     @classmethod
-    def valid_patterns(cls, values):
+    def valid_patterns(cls, values: list[Any]) -> list[Any]:
         return [checked_pattern(value) for value in values]
 
     @field_validator("required_query_parameters")
     @classmethod
-    def valid_query_patterns(cls, values):
+    def valid_query_patterns(cls, values: dict[str, str]) -> dict[str, str]:
         return {key: checked_pattern(value) for key, value in values.items()}
 
     @field_validator("exclude_paths")
     @classmethod
-    def absolute_paths(cls, values):
+    def absolute_paths(cls, values: list[Any]) -> list[Any]:
         if any(not value.startswith("/") or "?" in value or "#" in value for value in values):
             raise ValueError("Excluded paths must be absolute paths without queries/fragments")
         return values
 
     @model_validator(mode="after")
-    def preserve_required_query(self):
+    def preserve_required_query(self) -> Self:
         if set(self.required_query_parameters) & set(self.drop_query_parameters):
             raise ValueError("Cannot drop a required query parameter")
         return self
@@ -100,7 +101,7 @@ class TextDateRule(Contract):
 
     @field_validator("pattern")
     @classmethod
-    def date_group(cls, value):
+    def date_group(cls, value: str | None) -> str | None:
         if value is not None:
             checked_pattern(value)
             if "date" not in re.compile(value).groupindex:
@@ -139,7 +140,7 @@ class HTMLDiscoveryRules(Contract):
 
     @field_validator("moh_portal_categories")
     @classmethod
-    def portal_categories(cls, values):
+    def portal_categories(cls, values: list[Any]) -> list[Any]:
         if len(set(values)) != len(values) or any(
             not re.fullmatch(r"[1-9][0-9]*", value) for value in values
         ):
@@ -148,17 +149,17 @@ class HTMLDiscoveryRules(Contract):
 
     @field_validator("listing_path_patterns")
     @classmethod
-    def listing_patterns(cls, values):
+    def listing_patterns(cls, values: list[Any]) -> list[Any]:
         return [checked_pattern(value) for value in values]
 
     @field_validator("required_query_parameters")
     @classmethod
-    def query_patterns(cls, values):
+    def query_patterns(cls, values: dict[str, str]) -> dict[str, str]:
         return {key: checked_pattern(value) for key, value in values.items()}
 
     @field_validator("sequential_page_pattern")
     @classmethod
-    def page_pattern(cls, value):
+    def page_pattern(cls, value: str | None) -> str | None:
         if value is not None:
             checked_pattern(value)
             if "page" not in re.compile(value).groupindex:
@@ -166,7 +167,7 @@ class HTMLDiscoveryRules(Contract):
         return value
 
     @model_validator(mode="after")
-    def preserve_required_query(self):
+    def preserve_required_query(self) -> Self:
         if set(self.required_query_parameters) & set(self.drop_query_parameters):
             raise ValueError("Cannot drop a required listing query parameter")
         return self
@@ -190,7 +191,7 @@ class HTMLSourceRules(Contract):
 
     @field_validator("host")
     @classmethod
-    def exact_host(cls, value):
+    def exact_host(cls, value: str) -> str:
         if (
             len(value) > 253
             or not re.fullmatch(r"[a-z0-9]+(?:[.-][a-z0-9]+)*", value)
@@ -200,7 +201,7 @@ class HTMLSourceRules(Contract):
         return value
 
     @model_validator(mode="after")
-    def scoped_lead(self):
+    def scoped_lead(self) -> Self:
         if self.lead and not self.article_scope:
             raise ValueError("Lead extraction requires an article scope")
         if not self.article_scope and any(r.scope == "article_children" for r in self.text_dates):
@@ -208,7 +209,7 @@ class HTMLSourceRules(Contract):
         return self
 
 
-def builtin_html_rules(profile, *, listing_url=None):
+def builtin_html_rules(profile: str | None, *, listing_url=None) -> HTMLSourceRules:
     """Read legacy presets on demand. New sources can supply inline rules instead."""
     presets = json.loads(files("healthlab.signal").joinpath("html_profiles.json").read_text())
     if profile not in presets:

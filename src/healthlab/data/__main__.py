@@ -2,10 +2,11 @@
 
 import argparse
 import json
-import sys
+import logging
 from datetime import date
 from pathlib import Path
 
+from healthlab.common import JsonObject, configure_logging
 from healthlab.data.bundle import export_dataset, verify_export
 from healthlab.data.datasets import build_dataset, read_dataset, summary
 from healthlab.data.supervision import record_operation_failure, supervise
@@ -21,22 +22,24 @@ from healthlab.signal.source_http import FetchPolicy
 from healthlab.signal.storage import collection_storage
 from healthlab.store import RunStore
 
+logger = logging.getLogger(__name__)
 
-def _main(argv=None):
+
+def _main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--store", type=Path, default=Path("outputs/data"))
     parser.add_argument(
         "--storage-config", type=Path, help="Optional existing GCS/PostgreSQL collector adapter"
     )
     commands = parser.add_subparsers(dest="command", required=True)
-    run = commands.add_parser(
+    collect_parser = commands.add_parser(
         "collect", help="Collect fresh data; reconcile compatible historical candidates"
     )
-    run.add_argument("--registry", type=Path, default=Path("config/signal_sources.json"))
-    run.add_argument("--mindate", required=True, type=date.fromisoformat)
-    run.add_argument("--maxdate", required=True, type=date.fromisoformat)
-    run.add_argument("--max-attempts", type=int, default=3)
-    run.add_argument("--request-interval", type=float, default=0.25)
+    collect_parser.add_argument("--registry", type=Path, default=Path("config/signal_sources.json"))
+    collect_parser.add_argument("--mindate", required=True, type=date.fromisoformat)
+    collect_parser.add_argument("--maxdate", required=True, type=date.fromisoformat)
+    collect_parser.add_argument("--max-attempts", type=int, default=3)
+    collect_parser.add_argument("--request-interval", type=float, default=0.25)
     for command in ("resume", "replay", "repair", "build"):
         action = commands.add_parser(command)
         action.add_argument("collection_id")
@@ -53,6 +56,7 @@ def _main(argv=None):
     commands.add_parser("verify").add_argument("path", type=Path)
     commands.add_parser("catalog")
     args = parser.parse_args(argv)
+    result: JsonObject
     try:
         if args.command == "verify":
             result = verify_export(args.path)
@@ -65,11 +69,7 @@ def _main(argv=None):
                 store = RunStore(args.store)
 
             def started(run_id):
-                print(
-                    json.dumps({"collection_id": run_id, "status": "running"}),
-                    file=sys.stderr,
-                    flush=True,
-                )
+                logger.info("Collection %s is running", run_id)
 
             if args.command == "collect":
                 registry = Registry.model_validate_json(args.registry.read_bytes())
@@ -93,14 +93,14 @@ def _main(argv=None):
                 if args.command == "resume":
                     run = resume_collection(store, args.collection_id)
                 elif args.command in {"replay", "repair"}:
-                    registry = (
+                    replay_registry = (
                         Registry.model_validate_json(args.registry.read_bytes())
                         if args.registry
                         else None
                     )
                     reprocess = replay_collection if args.command == "replay" else repair_collection
                     run = reprocess(
-                        store, args.collection_id, registry=registry, on_started=started
+                        store, args.collection_id, registry=replay_registry, on_started=started
                     )
                 else:
                     run = {"run_id": args.collection_id}
@@ -112,7 +112,7 @@ def _main(argv=None):
                 result = export_dataset(store, args.dataset_id, args.out)
             else:
                 storage = collection_storage(store)
-                datasets = {}
+                datasets: dict[str, JsonObject] = {}
                 for run_id in storage.state.list_runs("signal_dataset"):
                     run = storage.load(run_id)
                     if run["status"] == "completed":
@@ -152,14 +152,9 @@ def _main(argv=None):
             try:
                 incident_ref = record_operation_failure(RunStore(args.store), args.command, exc)
             except Exception as incident_exc:
-                print(
-                    json.dumps(
-                        {
-                            "error_code": "incident_persistence_failed",
-                            "type": type(incident_exc).__name__,
-                        }
-                    ),
-                    file=sys.stderr,
+                logger.error(
+                    "incident_persistence_failed: could not record the incident (%s)",
+                    type(incident_exc).__name__,
                 )
         print(
             json.dumps(
@@ -176,9 +171,10 @@ def _main(argv=None):
         return 1
 
 
-def main(argv=None):
+def main(argv: list[str] | None = None) -> int:
     from healthlab.data.power import awake_for_cli
 
+    configure_logging()
     with awake_for_cli():
         return _main(argv)
 

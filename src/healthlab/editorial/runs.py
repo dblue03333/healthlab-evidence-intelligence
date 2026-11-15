@@ -2,9 +2,11 @@
 
 import hashlib
 import json
+import logging
 from pathlib import Path
+from typing import Any
 
-from healthlab.common import decode_model_json
+from healthlab.common import JsonObject, decode_model_json
 from healthlab.data.datasets import read_dataset
 from healthlab.data.pilot import runner_lock
 from healthlab.data.supervision import supervised_records
@@ -19,7 +21,10 @@ from healthlab.editorial.contracts import (
 )
 from healthlab.editorial.dates import DATE_POLICY_VERSIONS
 from healthlab.editorial.passages import POLICY as PASSAGE_POLICY
-from healthlab.store import json_bytes
+from healthlab.provider import Provider
+from healthlab.store import RunStore, json_bytes
+
+logger = logging.getLogger(__name__)
 
 # Bind every module in the editorial workflow and its versioned dependencies.
 _RUNTIME_FILES = (
@@ -45,7 +50,7 @@ _RUNTIME_FILES = (
 )
 
 
-def fingerprint():
+def fingerprint() -> str:
     root = Path(__file__).resolve().parents[1]
     hashes = {
         name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in _RUNTIME_FILES
@@ -53,11 +58,13 @@ def fingerprint():
     return hashlib.sha256(json_bytes(hashes)).hexdigest()
 
 
-def is_current_run(run):
+def is_current_run(run: JsonObject) -> bool:
     return run.get("version") == VERSION and run["runtime_sha256"] == fingerprint()
 
 
-def prepare(source, store, dataset_id, provider, *, call_budget=180):
+def prepare(
+    source: RunStore, store: RunStore, dataset_id: str, provider: Provider, *, call_budget=180
+) -> JsonObject:
     records = supervised_records(source, dataset_id)
     _, _, _, gold = read_dataset(source, dataset_id)
     if not records or len(records) + 1 > call_budget or not 1 <= call_budget <= 500:
@@ -97,7 +104,9 @@ def prepare(source, store, dataset_id, provider, *, call_budget=180):
     return run
 
 
-def load(store, run_id, provider=None, *, for_inference=False):
+def load(
+    store: RunStore, run_id: str, provider: Provider | None = None, *, for_inference=False
+) -> Any:
     run = store.load(run_id)
     archived = run.get("version") in READ_VERSIONS
     if not is_current_run(run) and (for_inference or not archived):
@@ -112,15 +121,15 @@ def load(store, run_id, provider=None, *, for_inference=False):
     return run, {r["document_id"]: r for r in records}
 
 
-def jobs(store, run):
+def jobs(store: RunStore, run: JsonObject) -> list[JsonObject]:
     return [store.load(i) for i in run["jobs"]]
 
 
-def allocated_calls(run, calls):
+def allocated_calls(run: JsonObject, calls: list[JsonObject]) -> int:
     return run.get("prior_call_count", 0) + sum(not j.get("reused_from") for j in calls)
 
 
-def adopt_previous(store, run_id, parent_id, *, probes=()):
+def adopt_previous(store: RunStore, run_id: str, parent_id: str, *, probes=()) -> JsonObject:
     """Explicit offline revalidation; preserve old failures and never synthesize fields.
 
     Only a single named wrapper around an otherwise valid complete proposal can be
@@ -167,7 +176,14 @@ def adopt_previous(store, run_id, parent_id, *, probes=()):
                     raw = resolve_reference_ids(raw, row, version=run["version"])
                 result = canonical_proposal(raw, row, run["question"], version=run["version"])
                 reused[old["document_id"]] = (old, result, route)
-            except Exception:
+            except Exception as exc:
+                # Any decode or validation failure leaves the job to run again.
+                # Log only the type: validation messages can quote model or source text.
+                logger.debug(
+                    "Previous answer for %s not adopted: %s",
+                    old.get("document_id"),
+                    type(exc).__name__,
+                )
                 continue  # Retain original failure; never guess missing content.
         current = jobs(store, run)
         # Only an undispatched classification can take a reused result; a job that

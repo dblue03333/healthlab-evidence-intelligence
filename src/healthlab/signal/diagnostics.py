@@ -4,16 +4,18 @@ import time
 import traceback
 from datetime import UTC, datetime
 
+from healthlab.common import JsonObject
+
 
 class Span:
     """Durations only; absolute monotonic clocks must never cross processes."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.started_at = datetime.now(UTC)
         self.monotonic = time.perf_counter()
         self.cpu = time.process_time()
 
-    def finish(self):
+    def finish(self) -> JsonObject:
         return {
             "started_at": self.started_at.isoformat(),
             "finished_at": datetime.now(UTC).isoformat(),
@@ -23,10 +25,11 @@ class Span:
         }
 
 
-def exception_diagnostic(exc):
+def exception_diagnostic(exc: BaseException) -> JsonObject:
     """Keep call sites and chained types, never potentially secret exception text."""
-    chain, seen = [], set()
-    current = exc
+    chain: list[JsonObject] = []
+    seen: set[int] = set()
+    current: BaseException | None = exc
     while current is not None and id(current) not in seen and len(chain) < 8:
         seen.add(id(current))
         chain.append(

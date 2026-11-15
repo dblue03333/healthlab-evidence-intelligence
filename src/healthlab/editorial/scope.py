@@ -4,10 +4,11 @@ This is a model judgment with literal passage identity checks, not an accuracy
 certificate. It does not replace factual/date/origin review or agent approval.
 """
 
-from typing import Literal
+from typing import Literal, Self
 
 from pydantic import Field, model_validator
 
+from healthlab.common import JsonObject
 from healthlab.models import Contract
 
 VERSION = "healthy-ageing-scope-1"
@@ -23,7 +24,7 @@ class ScopeAssessment(Contract):
     rationale: str = Field(min_length=1, max_length=1600)
 
     @model_validator(mode="after")
-    def complete_support(self):
+    def complete_support(self) -> Self:
         if len(self.passage_ids) != len(set(self.passage_ids)):
             raise ValueError("Repeated scope passage")
         if self.verdict == "substantive" and (
@@ -72,7 +73,7 @@ Return one closed-schema JSON object, all fields present. No approval or publica
 """
 
 
-def validate_scope(payload, passages):
+def validate_scope(payload: JsonObject, passages: list[JsonObject]) -> JsonObject:
     value = ScopeAssessment.model_validate(payload)
     by_id = {p["passage_id"]: p for p in passages}
     if any(identifier not in by_id for identifier in value.passage_ids):
@@ -83,7 +84,7 @@ def validate_scope(payload, passages):
     )
 
 
-def scope_gate(assessment, passages):
+def scope_gate(assessment: JsonObject | None, passages: list[JsonObject]) -> JsonObject:
     if assessment is None:
         return {"eligible": False, "reasons": ["scope_assessment_missing"]}
     try:

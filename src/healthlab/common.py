@@ -1,19 +1,55 @@
 """Small helpers shared by collection, data and editorial code."""
 
 import json
+import logging
 import os
+import sys
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any, TypeAlias
 
 from healthlab.models import IngestionError
 
+# A JSON object as stored in the run store (runs, jobs, checkpoints, records).
+# The code that reads one checks the keys it needs; the alias names the shape, not the keys.
+JsonObject: TypeAlias = dict[str, Any]
 
-def utc_now():
+
+class _CurrentStderrHandler(logging.StreamHandler):
+    """Write to whatever sys.stderr is at emit time, so later redirection still works."""
+
+    def __init__(self) -> None:
+        super().__init__(sys.stderr)
+
+    @property
+    def stream(self):
+        return sys.stderr
+
+    @stream.setter
+    def stream(self, _value):
+        pass  # Always follow sys.stderr; StreamHandler.__init__ assigns a fixed stream.
+
+
+def configure_logging() -> None:
+    """Send healthlab diagnostics to stderr; stdout stays reserved for each command's JSON result.
+
+    The level comes from HEALTHLAB_LOG_LEVEL (default INFO). Calling it again only updates the level.
+    """
+    level = os.environ.get("HEALTHLAB_LOG_LEVEL", "INFO").strip().upper() or "INFO"
+    logger = logging.getLogger("healthlab")
+    logger.setLevel(level)
+    if not any(isinstance(h, _CurrentStderrHandler) for h in logger.handlers):
+        handler = _CurrentStderrHandler()
+        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+        logger.addHandler(handler)
+
+
+def utc_now() -> str:
     return datetime.now(UTC).isoformat()
 
 
-def write_text_atomic(path: Path, text: str):
+def write_text_atomic(path: Path, text: str) -> None:
     """Replace a text file in one step; a crash leaves the old or the new file, never half."""
     fd, tmp = tempfile.mkstemp(dir=path.parent)
     try:
@@ -27,7 +63,7 @@ def write_text_atomic(path: Path, text: str):
             os.unlink(tmp)
 
 
-def decode_model_json(content: str):
+def decode_model_json(content: str) -> "JsonObject":
     """Model output as JSON: one optional code fence, no duplicate keys, finite numbers."""
     cleaned = content.strip()
     if cleaned.startswith("```"):

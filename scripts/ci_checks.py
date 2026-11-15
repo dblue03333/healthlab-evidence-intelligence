@@ -40,6 +40,9 @@ def main():
             lint = [sys.executable, "-m", "ruff", *command, "src", "tests", "scripts"]
             if subprocess.run(lint).returncode:
                 return 1
+        # Files come from [tool.mypy] in pyproject.toml.
+        if subprocess.run([sys.executable, "-m", "mypy"]).returncode:
+            return 1
     sys.addaudithook(guard)
     options = ["-q"]
     if args.postgres:

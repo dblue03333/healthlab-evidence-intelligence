@@ -8,14 +8,14 @@ from typing import Protocol
 
 import httpx
 
-from healthlab.common import utc_now
+from healthlab.common import JsonObject, utc_now
 from healthlab.config import FPTSettings
 from healthlab.models import IngestionError
 
-Audit = Callable[[dict, bytes | None], None]
+Audit = Callable[[JsonObject, bytes | None], None]
 
 
-def json_schema_format(schema):
+def json_schema_format(schema: JsonObject) -> JsonObject:
     if schema.get("type") != "object" or schema.get("additionalProperties") is not False:
         raise ValueError("Structured output requires a closed object schema")
     return {
@@ -24,7 +24,7 @@ def json_schema_format(schema):
     }
 
 
-def schema_digest(schema):
+def schema_digest(schema: JsonObject) -> str:
     return hashlib.sha256(
         json.dumps(schema, ensure_ascii=False, sort_keys=True, indent=2).encode("utf-8")
     ).hexdigest()
@@ -39,12 +39,25 @@ class Completion:
 
 
 class Provider(Protocol):
-    def identity(self) -> dict: ...
-    def complete(self, messages: list[dict], audit: Audit) -> Completion: ...
+    def identity(self) -> JsonObject: ...
+    def complete(self, messages: list[JsonObject], audit: Audit) -> Completion: ...
+    def complete_json(
+        self, messages: list[JsonObject], audit: Audit, *, schema: JsonObject
+    ) -> Completion: ...
+    def complete_json_object(
+        self, messages: list[JsonObject], audit: Audit, *, schema: JsonObject
+    ) -> Completion: ...
 
 
 class FPTProvider:
-    def __init__(self, settings: FPTSettings, client=None, *, cache_only=False, lazy=False):
+    def __init__(
+        self,
+        settings: FPTSettings,
+        client: httpx.Client | None = None,
+        *,
+        cache_only=False,
+        lazy=False,
+    ) -> None:
         if not cache_only and not lazy:
             settings.validate_online()
         self.settings = settings
@@ -56,7 +69,7 @@ class FPTProvider:
         )
         self.owns_client = client is None and not cache_only
 
-    def identity(self):
+    def identity(self) -> JsonObject:
         return {
             "provider": "fpt",
             "adapter_version": "fpt-chat-2",
@@ -67,30 +80,41 @@ class FPTProvider:
             "request_options": self.request_options(),
         }
 
-    def request_options(self):
+    def request_options(self) -> JsonObject:
         if self.settings.thinking_mode == "provider_default":
             return {}
         return {"thinking": {"type": self.settings.thinking_mode}}
 
-    def close(self):
+    def close(self) -> None:
         if self.owns_client and self.client is not None:
             self.client.close()
 
-    def complete(self, messages, audit):
+    def complete(self, messages: list[JsonObject], audit: Audit) -> Completion:
         return self._complete(messages, audit)
 
-    def complete_json(self, messages, audit, *, schema):
+    def complete_json(
+        self, messages: list[JsonObject], audit: Audit, *, schema: JsonObject
+    ) -> Completion:
         """Request strict schema output explicitly; never retry as unconstrained text."""
         return self._complete(messages, audit, response_format=json_schema_format(schema))
 
-    def complete_json_object(self, messages, audit, *, schema):
+    def complete_json_object(
+        self, messages: list[JsonObject], audit: Audit, *, schema: JsonObject
+    ) -> Completion:
         """Request JSON syntax; the supplied schema remains a locally validated contract."""
         json_schema_format(schema)
         return self._complete(
             messages, audit, response_format={"type": "json_object"}, contract=schema
         )
 
-    def _complete(self, messages, audit, *, response_format=None, contract=None):
+    def _complete(
+        self,
+        messages: list[JsonObject],
+        audit: Audit,
+        *,
+        response_format: JsonObject | None = None,
+        contract: JsonObject | None = None,
+    ) -> Completion:
         if self.cache_only:
             raise IngestionError(
                 "cache_miss", "No valid cached extraction; cache-only mode does not call FPT"
@@ -99,7 +123,7 @@ class FPTProvider:
         if self.client is None:
             self.client = httpx.Client(timeout=self.settings.timeout)
         key = self.settings.api_key.get_secret_value()
-        event = {
+        event: JsonObject = {
             "provider": "fpt",
             "request_options": self.request_options(),
             "started_at": utc_now(),
@@ -107,7 +131,7 @@ class FPTProvider:
             "error_code": None,
             "body_redacted": False,
         }
-        payload = {
+        payload: JsonObject = {
             "model": self.settings.model,
             "messages": messages,
             "temperature": 0.0,
@@ -186,11 +210,11 @@ class FPTProvider:
 class FakeProvider:
     """Explicit deterministic test provider. Never an online fallback."""
 
-    def __init__(self, completions: list[Completion | Exception]):
+    def __init__(self, completions: list[Completion | Exception]) -> None:
         self.completions = iter(completions)
         self.calls = 0
 
-    def identity(self):
+    def identity(self) -> JsonObject:
         return {
             "provider": "fake",
             "adapter_version": "fake-1",
@@ -199,7 +223,7 @@ class FakeProvider:
             "max_tokens": 4096,
         }
 
-    def complete(self, messages, audit):
+    def complete(self, messages: list[JsonObject], audit: Audit) -> Completion:
         self.calls += 1
         result = next(self.completions)
         if isinstance(result, Exception):
@@ -216,9 +240,13 @@ class FakeProvider:
         )
         return result
 
-    def complete_json(self, messages, audit, *, schema):
+    def complete_json(
+        self, messages: list[JsonObject], audit: Audit, *, schema: JsonObject
+    ) -> Completion:
         self.response_schemas = getattr(self, "response_schemas", []) + [schema]
         return self.complete(messages, audit)
 
-    def complete_json_object(self, messages, audit, *, schema):
+    def complete_json_object(
+        self, messages: list[JsonObject], audit: Audit, *, schema: JsonObject
+    ) -> Completion:
         return self.complete_json(messages, audit, schema=schema)

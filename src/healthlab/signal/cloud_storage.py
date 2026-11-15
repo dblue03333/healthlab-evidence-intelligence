@@ -9,6 +9,8 @@ import json
 import re
 import uuid
 from contextlib import contextmanager
+from pathlib import Path
+from typing import Any
 
 from healthlab.common import utc_now
 from healthlab.models import MANIFEST_VERSION, IngestionError
@@ -30,7 +32,7 @@ DDL = (
 
 
 class GCSObjectStore:
-    def __init__(self, bucket, prefix="healthlab/signal"):
+    def __init__(self, bucket: Any, prefix: str = "healthlab/signal") -> None:
         # Import only for the optional cloud backend.
         from google.api_core.exceptions import NotFound, PreconditionFailed
 
@@ -41,12 +43,12 @@ class GCSObjectStore:
         self.not_found = NotFound
         self.precondition_failed = PreconditionFailed
 
-    def _blob(self, digest):
+    def _blob(self, digest: str):
         if not re.fullmatch(r"[a-f0-9]{64}", digest):
             raise IngestionError("invalid_reference", "Invalid object digest")
         return self.bucket.blob(f"{self.prefix}/objects/{digest}")
 
-    def put(self, content):
+    def put(self, content: bytes) -> str:
         digest = hashlib.sha256(content).hexdigest()
         try:
             self._blob(digest).upload_from_string(
@@ -63,7 +65,7 @@ class GCSObjectStore:
             raise IngestionError("cloud_object_io", "Cloud object upload failed") from exc
         return digest
 
-    def read(self, digest):
+    def read(self, digest: str) -> bytes:
         blob = self._blob(digest)
         try:
             content = blob.download_as_bytes(timeout=30, retry=None)
@@ -301,7 +303,7 @@ def cloud_collection_storage(dsn, bucket_name, *, prefix="healthlab/signal", nam
     return CollectionStorage(objects, state)
 
 
-def storage_from_config(path):
+def storage_from_config(path: Path):
     import os
 
     from pydantic import Field

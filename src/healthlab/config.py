@@ -58,7 +58,7 @@ class FPTSettings(BaseSettings):
         default="disabled", validation_alias="FPT_THINKING_MODE"
     )
 
-    def validate_online(self):
+    def validate_online(self) -> None:
         from urllib.parse import urlsplit
 
         parsed = urlsplit(self.base_url)

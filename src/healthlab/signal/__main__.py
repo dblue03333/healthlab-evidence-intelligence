@@ -2,14 +2,15 @@
 
 import argparse
 import json
+import logging
 import os
-import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 
+from healthlab.common import configure_logging
 from healthlab.config import Settings
 from healthlab.models import IngestionError
 from healthlab.pubmed import PubMedClient
@@ -20,9 +21,12 @@ from healthlab.signal.source_http import FetchPolicy
 from healthlab.signal.source_probe import ProbeTargets, probe_sources
 from healthlab.store import RunStore
 
+logger = logging.getLogger(__name__)
 
-def main(argv=None):
+
+def main(argv: list[str] | None = None) -> int:
     load_dotenv()
+    configure_logging()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--store", type=Path, default=Path("outputs/signal"))
     parser.add_argument(
@@ -137,11 +141,7 @@ def main(argv=None):
                     fetch_policy=FetchPolicy(
                         max_attempts=args.max_attempts, request_interval=args.request_interval
                     ),
-                    on_started=lambda run_id: print(
-                        json.dumps({"run_id": run_id, "status": "running"}),
-                        file=sys.stderr,
-                        flush=True,
-                    ),
+                    on_started=lambda run_id: logger.info("Run %s is running", run_id),
                 )
                 result = {k: run[k] for k in ("run_id", "status", "source_checks", "documents")}
             finally:

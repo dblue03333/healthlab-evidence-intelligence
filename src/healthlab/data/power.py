@@ -1,13 +1,17 @@
 """Hold a macOS sleep assertion only for the lifetime of a CLI invocation."""
 
+import logging
 import os
 import subprocess
 import sys
+from collections.abc import Iterator
 from contextlib import contextmanager
+
+logger = logging.getLogger(__name__)
 
 
 @contextmanager
-def awake_for_cli():
+def awake_for_cli() -> Iterator[None]:
     process = None
     if sys.platform == "darwin":
         try:
@@ -17,7 +21,7 @@ def awake_for_cli():
                 stderr=subprocess.DEVNULL,
             )
         except OSError:
-            print("Warning: sleep assertion unavailable; run on an awake host.", file=sys.stderr)
+            logger.warning("Sleep assertion unavailable; run on an awake host.")
     try:
         yield
     finally:

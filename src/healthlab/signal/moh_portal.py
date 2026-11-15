@@ -1,29 +1,48 @@
 """Official Ministry portal's public read-only API; raw JSON remains the source."""
 
 import json
+from collections.abc import Callable
 from datetime import datetime
 from html import escape
 from urllib.parse import parse_qs, urlencode, urlsplit
 
+from healthlab.common import JsonObject
 from healthlab.models import IngestionError
+from healthlab.signal.contracts import Source
 from healthlab.signal.html_adapter import ConfiguredHTMLAdapter
 from healthlab.signal.html_rules import ElementSelector
+from healthlab.signal.source_http import HTMLFetcher
 
 API = "https://moh.gov.vn/bridge?url=/portal/api/"
 VERSION = "moh-portal-2"
 
 
-def publication_day(value):
+def publication_day(value: str) -> str:
     # Require the complete displayed timestamp, not an arbitrary ten-char prefix.
     return datetime.strptime(value, "%d/%m/%Y %I:%M %p").date().isoformat()
 
 
-def discover_portal(source, fetcher, checkpoint, save, *, mindate, maxdate):
+def discover_portal(
+    source: Source,
+    fetcher: HTMLFetcher,
+    checkpoint: JsonObject,
+    save: Callable,
+    *,
+    mindate,
+    maxdate,
+) -> JsonObject:
     if maxdate is None or maxdate < mindate:
         raise ValueError("Portal discovery requires a complete publication window")
     rules = source.html_discovery
-    pages, gaps, candidates, dates, evidence = [], [], {}, {}, {}
-    record_dates, article_urls = {}, {}
+    if rules is None:  # Only sources configured for this discovery branch reach here.
+        raise ValueError("Source has no HTML discovery rules")
+    pages: list[JsonObject] = []
+    gaps: list[JsonObject] = []
+    candidates: dict[str, JsonObject] = {}
+    dates: dict[str, set[str]] = {}
+    evidence: dict[str, list[JsonObject]] = {}
+    record_dates: dict[str, str] = {}
+    article_urls: dict[str, str] = {}
     for category in rules.moh_portal_categories:
         url = API + "lay_bai_viet_theo_danh_muc"
         body = {
@@ -34,7 +53,7 @@ def discover_portal(source, fetcher, checkpoint, save, *, mindate, maxdate):
             "PAGE_SIZE": rules.portal_inventory_size,
             "ISEXTEND": 1,
         }
-        page = {
+        page: JsonObject = {
             "url": url,
             "request_json": body,
             "category_id": category,
@@ -174,7 +193,13 @@ def discover_portal(source, fetcher, checkpoint, save, *, mindate, maxdate):
     }
 
 
-def fetch_article(source, item, fetcher, checkpoint, save):
+def fetch_article(
+    source: Source,
+    item: dict[str, str],
+    fetcher: HTMLFetcher,
+    checkpoint: JsonObject,
+    save: Callable,
+) -> tuple[bytes, str, JsonObject]:
     query = parse_qs(urlsplit(item["url"]).query)
     body = {"maBaiViet": query["aid"][0], "maDanhMuc": query["cid"][0]}
     raw, digest = fetcher.fetch(

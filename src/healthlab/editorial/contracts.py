@@ -1,10 +1,11 @@
 """Versioned editorial schemas and validation against frozen source text."""
 
 from types import SimpleNamespace
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal, Self
 
 from pydantic import Field, model_validator
 
+from healthlab.common import JsonObject
 from healthlab.editorial.context import (
     MAX_CONTEXT_CHARS,
     BindingRepair,
@@ -107,7 +108,7 @@ class ArticleProposal(Contract):
     uncertainties: list[str] = Field(max_length=6)
 
     @model_validator(mode="after")
-    def coherent(self):
+    def coherent(self) -> Self:
         if self.relevance == "relevant" and (not self.topics or not self.facts):
             raise ValueError("Relevant content needs a topic and evidence facts")
         if len(self.topics) != len(set(self.topics)):
@@ -166,14 +167,14 @@ class ReferenceIDFact(Contract):
 
 
 class ReferenceArticleProposal(IDArticleProposal):
-    facts: list[ReferenceIDFact] = Field(max_length=5)
+    facts: list[ReferenceIDFact] = Field(max_length=5)  # type: ignore[assignment]  # A later contract version narrows the field.
 
 
 class SupportedIDFact(ReferenceIDFact):
     supporting_passage_ids: list[str] = Field(max_length=3)
 
     @model_validator(mode="after")
-    def distinct_support(self):
+    def distinct_support(self) -> Self:
         ids = [self.passage_id, *self.supporting_passage_ids]
         if len(ids) != len(set(ids)):
             raise ValueError("Repeated supporting passage ID")
@@ -181,7 +182,7 @@ class SupportedIDFact(ReferenceIDFact):
 
 
 class SupportedReferenceProposal(ReferenceArticleProposal):
-    facts: list[SupportedIDFact] = Field(max_length=5)
+    facts: list[SupportedIDFact] = Field(max_length=5)  # type: ignore[assignment]  # A later contract version narrows the field.
 
 
 class SupportedEvidenceFact(EvidenceFact):
@@ -189,7 +190,7 @@ class SupportedEvidenceFact(EvidenceFact):
 
 
 class SupportedArticleProposal(ArticleProposal):
-    facts: list[SupportedEvidenceFact] = Field(max_length=5)
+    facts: list[SupportedEvidenceFact] = Field(max_length=5)  # type: ignore[assignment]  # A later contract version narrows the field.
 
 
 class SamePassageDate(Contract):
@@ -204,7 +205,7 @@ class CrossPassageDate(Contract):
     rationale: str = Field(min_length=1, max_length=900)
 
     @model_validator(mode="after")
-    def non_blank_rationale(self):
+    def non_blank_rationale(self) -> Self:
         if not self.rationale.strip():
             raise ValueError("Blank cross-passage date rationale")
         return self
@@ -230,7 +231,7 @@ class ContextIDFact(Contract):
 
 
 class ContextReferenceProposal(ReferenceArticleProposal):
-    facts: list[ContextIDFact] = Field(max_length=5)
+    facts: list[ContextIDFact] = Field(max_length=5)  # type: ignore[assignment]  # A later contract version narrows the field.
 
 
 class ContextEvidenceFact(SupportedEvidenceFact):
@@ -238,14 +239,14 @@ class ContextEvidenceFact(SupportedEvidenceFact):
 
 
 class ContextArticleProposal(ArticleProposal):
-    facts: list[ContextEvidenceFact] = Field(max_length=5)
+    facts: list[ContextEvidenceFact] = Field(max_length=5)  # type: ignore[assignment]  # A later contract version narrows the field.
 
 
 class RepairedContextArticleProposal(ContextArticleProposal):
     binding_repairs: list[BindingRepair] = Field(default_factory=list, max_length=25)
 
 
-def passage_policy(version):
+def passage_policy(version: str) -> str:
     if version in {
         "gold-editorial-11",
         "gold-editorial-12",
@@ -258,13 +259,15 @@ def passage_policy(version):
     raise ValueError("Unknown editorial passage runtime")
 
 
-def passage_inputs(article, *, version=VERSION):
+def passage_inputs(
+    article: dict[str, str], *, version=VERSION
+) -> tuple[list[JsonObject], list[JsonObject]] | tuple[list[JsonObject], list[Any]]:
     units = (
         editorial_passages(article["body"])
         if passage_policy(version) == PASSAGE_POLICY
         else source_passages(SimpleNamespace(text=article["body"]))
     )
-    dates = []
+    dates: list[JsonObject] = []
     policy = DATE_POLICY if version in DATE_POLICY_VERSIONS else None
     for unit in units:
         for value in editorial_literal_dates(
@@ -276,7 +279,9 @@ def passage_inputs(article, *, version=VERSION):
     return units, dates
 
 
-def resolve_ids(payload, article, *, version="gold-editorial-10"):
+def resolve_ids(
+    payload: JsonObject, article: dict[str, str], *, version="gold-editorial-10"
+) -> JsonObject:
     value = IDArticleProposal.model_validate(payload)
     units, dates = passage_inputs(article, version=version)
     by_id = {p["passage_id"]: p for p in units}
@@ -314,7 +319,9 @@ def resolve_ids(payload, article, *, version="gold-editorial-10"):
     return dict(raw, relevance_quote=by_id[value.relevance_passage_id]["quote"], facts=resolved)
 
 
-def resolve_reference_ids(payload, article, *, version=VERSION):
+def resolve_reference_ids(
+    payload: JsonObject, article: dict[str, str], *, version=VERSION
+) -> JsonObject:
     """Derive the date passage from its immutable candidate; never infer event linkage.
 
     V1–7 ID payloads retain their original validator above. Current inference no
@@ -374,12 +381,13 @@ def resolve_reference_ids(payload, article, *, version=VERSION):
                         }
                     )
                     link = dict(link, kind="same_passage")
-            if link and selected is None:
-                raise ValueError("Unknown event date candidate")
-            if link and (link["kind"] == "same_passage") != (
-                selected["passage_id"] == fact["passage_id"]
-            ):
-                raise ValueError("Date link kind differs from selected passage")
+            if link:
+                if selected is None:
+                    raise ValueError("Unknown event date candidate")
+                if (link["kind"] == "same_passage") != (
+                    selected["passage_id"] == fact["passage_id"]
+                ):
+                    raise ValueError("Date link kind differs from selected passage")
             fact["event_date_candidate_id"] = link["candidate_id"] if link else None
             fact["date_link_rationale"] = link.get("rationale") if link else None
         result = _resolve_reference_facts(value, article, version=version, supported=True)
@@ -393,7 +401,9 @@ def resolve_reference_ids(payload, article, *, version=VERSION):
     )
 
 
-def _resolve_reference_facts(payload, article, *, version, supported):
+def _resolve_reference_facts(
+    payload: JsonObject, article: dict[str, str], *, version, supported
+) -> JsonObject:
     model = SupportedReferenceProposal if supported else ReferenceArticleProposal
     value = model.model_validate(payload).model_dump()
     units, dates = passage_inputs(article, version=version)
@@ -411,10 +421,10 @@ def _resolve_reference_facts(payload, article, *, version, supported):
         selected = by_date.get(date_id)
         if date_id is not None and selected is None:
             raise ValueError("Unknown event date candidate")
-        linked = selected and selected["passage_id"] != fact["passage_id"]
+        linked = selected is not None and selected["passage_id"] != fact["passage_id"]
         if linked and not fact["date_link_rationale"]:
             raise ValueError("Cross-passage date needs an explicit same-event rationale")
-        fact["date_context_passage_id"] = selected["passage_id"] if linked else None
+        fact["date_context_passage_id"] = selected["passage_id"] if selected and linked else None
     result = resolve_ids(value, article, version=version)
     if supported:
         for fact, spans in zip(result["facts"], supports, strict=True):
@@ -439,7 +449,9 @@ class EditorialDraft(Contract):
     sections: list[DraftSection] = Field(min_length=1, max_length=8)
 
 
-def canonical_proposal(value, article, window, *, version=VERSION):
+def canonical_proposal(
+    value: JsonObject, article: dict[str, str], window: JsonObject, *, version=VERSION
+) -> JsonObject:
     contract = CONTEXT_CONTRACTS.get(version)
     date_policy = DATE_POLICY if version in DATE_POLICY_VERSIONS else None
     model = (

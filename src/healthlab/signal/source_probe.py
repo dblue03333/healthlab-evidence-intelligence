@@ -8,10 +8,11 @@ from urllib.parse import urldefrag, urljoin, urlsplit
 import httpx
 from pydantic import Field, field_validator
 
-from healthlab.common import utc_now
+from healthlab.common import JsonObject, utc_now
 from healthlab.models import Contract, IngestionError
 from healthlab.signal.contracts import Text, public_url
 from healthlab.signal.source_http import source_client
+from healthlab.store import RunStore
 
 PROBE_VERSION = "official-discovery-1"
 MAX_BYTES = 2_000_000
@@ -26,7 +27,7 @@ class ProbeTarget(Contract):
 
     @field_validator("url")
     @classmethod
-    def safe_url(cls, value):
+    def safe_url(cls, value: str) -> str:
         return public_url(value)
 
 
@@ -34,7 +35,7 @@ class ProbeTargets(Contract):
     sources: list[ProbeTarget] = Field(min_length=1, max_length=10)
 
 
-def topic_hint(title, *, basis="title_only"):
+def topic_hint(title: str, *, basis="title_only") -> JsonObject:
     """Discovery hints from titles only, not relevance or factual certification."""
     value = unicodedata.normalize("NFD", title.casefold().replace("đ", "d"))
     value = "".join(char for char in value if not unicodedata.combining(char))
@@ -78,31 +79,31 @@ def topic_hint(title, *, basis="title_only"):
 
 
 class PageInventory(HTMLParser):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
-        self.links = []
-        self.feeds = []
-        self.anchor = None
+        self.links: list[JsonObject] = []
+        self.feeds: list[str | None] = []
+        self.anchor: JsonObject | None = None
         self.hidden = 0
         self.limit_hit = False
 
-    def handle_starttag(self, tag, attrs):
-        attrs = dict(attrs)
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        values = dict(attrs)
         if tag in {"script", "style"}:
             self.hidden += 1
         if self.hidden:
             return
         if tag == "a":
             self.anchor = {
-                "href": attrs.get("href", ""),
-                "label": attrs.get("aria-label") or attrs.get("title", ""),
+                "href": values.get("href", ""),
+                "label": values.get("aria-label") or values.get("title", ""),
                 "parts": [],
             }
-        if tag == "link" and attrs.get("type") in {"application/rss+xml", "application/atom+xml"}:
+        if tag == "link" and values.get("type") in {"application/rss+xml", "application/atom+xml"}:
             if len(self.feeds) < 20:
-                self.feeds.append(attrs.get("href", ""))
+                self.feeds.append(values.get("href", ""))
 
-    def handle_endtag(self, tag):
+    def handle_endtag(self, tag: str) -> None:
         if tag in {"script", "style"}:
             self.hidden = max(0, self.hidden - 1)
         if tag == "a" and self.anchor is not None:
@@ -119,12 +120,12 @@ class PageInventory(HTMLParser):
                 self.limit_hit = True
             self.anchor = None
 
-    def handle_data(self, data):
+    def handle_data(self, data: str) -> None:
         if self.anchor is not None and not self.hidden:
             self.anchor["parts"].append(data)
 
 
-def page_inventory(raw, target):
+def page_inventory(raw: bytes, target: ProbeTarget) -> JsonObject:
     parser = PageInventory()
     parser.feed(raw.decode("utf-8", errors="replace"))
     candidates, feeds, seen = [], [], set()
@@ -165,7 +166,7 @@ def page_inventory(raw, target):
     }
 
 
-def probe_sources(store, targets, *, client=None):
+def probe_sources(store: RunStore, targets: ProbeTargets, *, client=None) -> JsonObject:
     owned = client is None
     client = client or source_client()
     run = store.new("signal_source_probe", {"targets": targets.model_dump()})
@@ -173,7 +174,7 @@ def probe_sources(store, targets, *, client=None):
     store.save(run)
     try:
         for target in targets.sources:
-            check = {
+            check: JsonObject = {
                 "source_id": target.source_id,
                 "organization": target.organization,
                 "url": target.url,

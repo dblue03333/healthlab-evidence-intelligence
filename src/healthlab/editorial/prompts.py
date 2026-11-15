@@ -1,7 +1,11 @@
 """Build editorial model requests from frozen sources and evidence packets."""
 
 import json
+from typing import Any
 
+from pydantic import BaseModel
+
+from healthlab.common import JsonObject
 from healthlab.editorial.contracts import (
     CONTEXT_CONTRACTS,
     VERSION,
@@ -71,7 +75,16 @@ Return exactly one JSON object matching the supplied schema; include every field
 """
 
 
-def messages(role, article, window, proposal=None, evidence=None, *, version=VERSION):
+def messages(
+    role: str,
+    article: dict[str, str] | None,
+    window: JsonObject,
+    proposal: Any = None,
+    evidence: list[JsonObject] | None = None,
+    *,
+    version=VERSION,
+) -> Any:
+    schema: type[BaseModel]
     if role == "classify":
         schema, instruction = (
             ReferenceArticleProposal,
@@ -264,7 +277,7 @@ code-resolved from the publication year and must still belong to this fact's eve
 """
     if version in PUBLICATION_WINDOW_VERSIONS and role == "draft":
         instruction += PUBLICATION_WINDOW_DRAFT
-    content = {"reporting_window": window}
+    content: JsonObject = {"reporting_window": window}
     if article is not None:
         content["article"] = {
             k: article[k]
@@ -359,7 +372,7 @@ Never accept a year that the source does not state for the event.
 """
 
 
-def article_messages(window, evidence):
+def article_messages(window: JsonObject, evidence: list[Any]) -> list[dict[str, str]]:
     """Narrative writer prompt; callers retain raw output and audit every claim.
 
     Evidence must be source-reviewed before dispatch. This prompt cannot certify

@@ -1,19 +1,23 @@
 """Bounded public HCMC search supplement, with resumable session audit."""
 
 import re
+from collections.abc import Callable
 from datetime import date
 from uuid import uuid4
 
+from healthlab.common import JsonObject
 from healthlab.models import IngestionError
+from healthlab.signal.contracts import Source
 from healthlab.signal.html_adapter import ConfiguredHTMLAdapter, parse_day
 from healthlab.signal.html_tree import ArticleTree
+from healthlab.signal.source_http import HTMLFetcher
 
 URL = "https://medinet.hochiminhcity.gov.vn/Search.aspx?key="
 TARGET = "ctl00$plcall$Search1$grvmn"
 VERSION = "hcm-public-search-1"
 
 
-def search_page(raw):
+def search_page(raw: bytes) -> tuple[int, list[tuple[str, str, str]], dict[str, str]]:
     tree = ArticleTree(raw)
     nodes = list(tree.root.nodes())
     totals = [n for n in nodes if n.attrs.get("id") == "plcall_Search1_lblMessage"]
@@ -23,7 +27,7 @@ def search_page(raw):
     match = re.fullmatch(r"Hệ thống tìm thấy (\d+) kết quả", totals[0].text())
     if not match or not 0 <= int(match[1]) <= 100:
         raise ValueError("Search result cap changed")
-    rows = []
+    rows: list[tuple[str, str, str]] = []
     for node in grids[0].nodes():
         if "story" not in node.attrs.get("class", "").split():
             continue
@@ -47,7 +51,15 @@ def search_page(raw):
     return int(match[1]), rows, fields
 
 
-def supplement_search(result, source, fetcher, checkpoint, save, *, mindate):
+def supplement_search(
+    result: JsonObject,
+    source: Source,
+    fetcher: HTMLFetcher,
+    checkpoint: JsonObject,
+    save: Callable,
+    *,
+    mindate,
+) -> JsonObject:
     from healthlab.signal.discovery import FATAL_STORAGE
 
     state = checkpoint.setdefault("hcm_search_state", {"attempts": 0})
@@ -68,9 +80,10 @@ def supplement_search(result, source, fetcher, checkpoint, save, *, mindate):
     result["discovery_method"] = result.get("discovery_method", "html") + ":" + VERSION
     adapter = ConfiguredHTMLAdapter(source.resolved_html_rules)
     candidates = {c["url"]: c for c in result["candidates"]}
-    total, previous_day, seen, fields = None, None, set(), None
+    total, previous_day, seen = None, None, set()
+    fields: dict[str, str] = {}  # Hidden paging state; page 1 is a plain GET.
     for number in range(1, 8):
-        page = {
+        page: JsonObject = {
             "url": URL,
             "page": number,
             "status": "running",
@@ -106,7 +119,10 @@ def supplement_search(result, source, fetcher, checkpoint, save, *, mindate):
             total = count
             additions = []
             for index, (href, title, day) in enumerate(rows):
-                native = re.search(r"-c(\d+)-(\d+)\.aspx$", href).groups()
+                identity = re.search(r"-c(\d+)-(\d+)\.aspx$", href)
+                if identity is None:  # search_page only returns rows with this identity.
+                    raise ValueError("Search result identity missing")
+                native = identity.groups()
                 if native in seen or previous_day and day > previous_day:
                     raise ValueError("Search identity repeated or order changed")
                 seen.add(native)

@@ -6,11 +6,14 @@ import os
 import re
 import shutil
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 
+from healthlab.common import JsonObject
 from healthlab.models import IngestionError
 from healthlab.signal.storage import collection_storage
-from healthlab.store import json_bytes, sync_directory
+from healthlab.store import RunStore, json_bytes, sync_directory
 
 REFERENCE_KEYS = {
     "raw_sha256",
@@ -32,7 +35,7 @@ REFERENCE_KEYS = {
 }
 
 
-def references(value):
+def references(value: Any) -> Iterator[str]:
     if isinstance(value, dict):
         for key, item in value.items():
             if key in REFERENCE_KEYS and item is not None:
@@ -46,21 +49,21 @@ def references(value):
             yield from references(item)
 
 
-def object_references(content):
+def object_references(content: bytes) -> list[Any]:
     try:
         return list(references(json.loads(content)))
     except (UnicodeDecodeError, json.JSONDecodeError):
         return []
 
 
-def _write(path, content):
+def _write(path: Path, content: bytes) -> None:
     with path.open("xb") as handle:
         handle.write(content)
         handle.flush()
         os.fsync(handle.fileno())
 
 
-def export_collection(store, run_id, destination):
+def export_collection(store: RunStore, run_id: str, destination: Path) -> JsonObject:
     """Export one HTML collection, including all referenced objects, under a lock.
 
     The resulting directory is itself a usable local store. Bundle inventory
@@ -126,7 +129,7 @@ def export_collection(store, run_id, destination):
             shutil.rmtree(temporary)
 
 
-def verify_bundle(directory):
+def verify_bundle(directory: Path) -> JsonObject:
     """Offline hash and reference-closure verification, without mutating the bundle."""
     root = Path(directory)
     inventory = json.loads((root / "bundle.json").read_bytes())

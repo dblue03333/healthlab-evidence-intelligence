@@ -2,41 +2,45 @@
 
 import hashlib
 from datetime import date
+from typing import Any
 
 import httpx
 
+from healthlab.common import JsonObject
 from healthlab.models import IngestionError
-from healthlab.signal.contracts import SourceDocument
+from healthlab.signal.contracts import Source, SourceDocument
 from healthlab.signal.html_adapter import PARSER_VERSION, ConfiguredHTMLAdapter, iso_day
 from healthlab.signal.html_rules import HTMLSourceRules, builtin_html_rules
 from healthlab.signal.source_adapters import source_adapter_for
 from healthlab.signal.source_http import FetchPolicy, HTMLFetcher
-from healthlab.store import json_bytes
+from healthlab.signal.storage import CollectionStorage
+from healthlab.store import RunStore, json_bytes
 
 
-def _rules(profile):
+def _rules(profile: str) -> HTMLSourceRules:
     return profile if isinstance(profile, HTMLSourceRules) else builtin_html_rules(profile)
 
 
-def parse_article(raw, profile, *, url=None):
+def parse_article(raw: bytes, profile: str, *, url=None) -> JsonObject:
     return ConfiguredHTMLAdapter(_rules(profile)).parse_article(raw, url=url)
 
 
-def article_url(url, profile):
+def article_url(url: str, profile: str) -> bool:
     rules = _rules(profile)
     return ConfiguredHTMLAdapter(rules).classify_url(url, "https://" + rules.host + "/").accepted
 
 
-def listing_dates(raw, source):
-    return ConfiguredHTMLAdapter(source.resolved_html_rules).listing_dates(raw, source.url)
+def listing_dates(raw: bytes, source: Source) -> dict[str, str]:
+    # urljoin treats a missing base like an empty one.
+    return ConfiguredHTMLAdapter(source.resolved_html_rules).listing_dates(raw, source.url or "")
 
 
-def fetch_html(client, url, store):
-    checkpoint = {"responses": {}, "http_attempts": []}
+def fetch_html(client: httpx.Client, url: str, store: RunStore):
+    checkpoint: JsonObject = {"responses": {}, "http_attempts": []}
     return HTMLFetcher(client, store).fetch(url, checkpoint, lambda: None)
 
 
-def checkpoint_identity(source, mindate, maxdate):
+def checkpoint_identity(source: Source, mindate: date, maxdate: date) -> str:
     config = source.model_dump()
     if config.get("html_discovery") and not config["html_discovery"]["hcm_search_inventory"]:
         config["html_discovery"].pop("hcm_search_inventory")
@@ -66,9 +70,9 @@ def checkpoint_identity(source, mindate, maxdate):
 
 
 def collect_html(
-    store,
-    source,
-    client,
+    store: CollectionStorage | RunStore,
+    source: Source,
+    client: httpx.Client | None,
     *,
     mindate,
     maxdate,
@@ -76,7 +80,7 @@ def collect_html(
     on_checkpoint=None,
     fetcher=None,
     historical_candidates=(),
-):
+) -> Any:
     identity = checkpoint_identity(source, mindate, maxdate)
     checkpoint = (
         checkpoint
@@ -120,7 +124,7 @@ def collect_html(
         url = previous["url"]
         if url in current_urls:
             continue
-        if not adapter.classify_url(url, source.url).accepted:
+        if not adapter.classify_url(url, source.url or "").accepted:
             raise ValueError("Historical candidate is outside the current source scope")
         recovered[url] = previous
         candidates.append({"url": url, "title": previous["title"]})
@@ -428,7 +432,7 @@ def collect_html(
     metadata["coverage_complete"] = metadata["coverage_complete"] and not metadata["item_errors"]
     metadata["website_coverage_complete"] = False
     metadata["checked_count"] = len(checks)
-    statuses = ("included", "outside_window", "needs_review", "failed")
+    statuses: tuple[str, ...] = ("included", "outside_window", "needs_review", "failed")
     if source.html_media_policy == "text_only":
         statuses += ("excluded_media",)
     metadata["counts"] = {

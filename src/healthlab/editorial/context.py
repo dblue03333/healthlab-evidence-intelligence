@@ -8,10 +8,11 @@ to null with a recorded reason. A dropped facet can never become release evidenc
 
 import re
 import unicodedata
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field, StrictInt
 
+from healthlab.common import JsonObject
 from healthlab.models import Contract
 
 FACETS = ("actor", "document", "population", "status")
@@ -62,9 +63,10 @@ class BindingRepair(Contract):
     reason: str = Field(min_length=1, max_length=80)
 
 
-def _fold(text):
+def _fold(text: str) -> tuple[str, list[int]]:
     """Lower-case and collapse whitespace, mapping each folded char to its source index."""
-    chars, index = [], []
+    chars: list[str] = []
+    index: list[int] = []
     for i, char in enumerate(text):
         if char.isspace():
             if not chars or chars[-1] == " ":
@@ -76,7 +78,7 @@ def _fold(text):
     return "".join(chars), index
 
 
-def _occurrences(haystack, needle):
+def _occurrences(haystack: str, needle: str) -> list[Any]:
     found, start = [], haystack.find(needle)
     while start != -1:
         found.append(start)
@@ -84,9 +86,9 @@ def _occurrences(haystack, needle):
     return found
 
 
-def _folded_matches(quote, span):
+def _folded_matches(quote: str, span: JsonObject) -> list[Any]:
     text = span["quote"]
-    form = "NFC" if unicodedata.is_normalized("NFC", text) else "NFD"
+    form: Literal["NFC", "NFD"] = "NFC" if unicodedata.is_normalized("NFC", text) else "NFD"
     quote = unicodedata.normalize(form, quote)
     needle = _fold(quote.strip())[0].strip()
     folded, index = _fold(text)
@@ -95,7 +97,9 @@ def _folded_matches(quote, span):
     return [(index[i], index[i + len(needle) - 1] + 1) for i in _occurrences(folded, needle)]
 
 
-def repair_binding(binding, spans):
+def repair_binding(
+    binding: JsonObject, spans: list[JsonObject]
+) -> tuple[JsonObject | None, str | None, str | None]:
     """Return (resolved binding or None, action or None, reason or None)."""
     by_id = {span["passage_id"]: span for span in spans}
     named = by_id.get(binding["passage_id"])
@@ -125,14 +129,15 @@ def repair_binding(binding, spans):
         return None, "dropped", "overlong_not_a_phrase"
     resolved = {"passage_id": span["passage_id"], "quote": text, "start": span["start"] + start}
     resolved["end"] = resolved["start"] + len(text)
-    reason = {"normalized": "case_or_whitespace", "rebound": "found_in_other_attached_passage"}
-    return resolved, action, reason.get(action)
+    reasons = {"normalized": "case_or_whitespace", "rebound": "found_in_other_attached_passage"}
+    return resolved, action, reasons.get(action) if action else None
 
 
-def repair_context(value, spans, fact_index):
+def repair_context(value: JsonObject, spans: list[JsonObject], fact_index: int) -> Any:
     """fact-context-2: per-facet repair or drop; returns (context, repairs)."""
     context = FactContext.model_validate(value).model_dump()
-    result, repairs = {}, []
+    result: dict[str, JsonObject | None] = {}
+    repairs: list[JsonObject] = []
     for facet, binding in context.items():
         result[facet], action, reason = (
             (None, None, None) if binding is None else repair_binding(binding, spans)
@@ -144,11 +149,11 @@ def repair_context(value, spans, fact_index):
     return result, repairs
 
 
-def resolve_context(value, spans):
+def resolve_context(value: JsonObject, spans: list[JsonObject]) -> JsonObject:
     """Bind only to attached support, never surrounding or sibling-fact text."""
     context = FactContext.model_validate(value).model_dump()
     by_id = {span["passage_id"]: span for span in spans}
-    result = {}
+    result: dict[str, JsonObject | None] = {}
     for facet, binding in context.items():
         if binding is None:
             result[facet] = None
@@ -161,7 +166,7 @@ def resolve_context(value, spans):
     return result
 
 
-def validate_context(value, spans, *, max_chars=None):
+def validate_context(value: JsonObject, spans: list[JsonObject], *, max_chars=None) -> JsonObject:
     resolved = ResolvedContext.model_validate(value).model_dump()
     if max_chars and any(b and len(b["quote"]) > max_chars for b in resolved.values()):
         raise ValueError("Context binding is longer than a context phrase")
@@ -182,7 +187,7 @@ _NUMERIC_DATE = re.compile(
 _WORDED_DATE = re.compile(r"ngày\s+(\d{1,2})\s+tháng\s+(\d{1,2})(?:\s*(?:năm|,)\s*(\d{4}))?", re.I)
 
 
-def rationale_date_conflict(rationale, iso_date):
+def rationale_date_conflict(rationale: str | None, iso_date: str) -> bool:
     """True when a link rationale names a calendar day other than the selected candidate.
 
     Catches an event placed on another day or a year the source never states (for example,
@@ -200,7 +205,7 @@ def rationale_date_conflict(rationale, iso_date):
     return False
 
 
-def date_is_range_endpoint(text, iso_date, *, policy=None):
+def date_is_range_endpoint(text: str, iso_date: str, *, policy=None) -> bool:
     """True when the literal date starts or ends a range such as an anniversary period."""
     from healthlab.editorial.dates import editorial_literal_dates, is_range_endpoint
 

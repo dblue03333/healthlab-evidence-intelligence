@@ -13,12 +13,13 @@ from datetime import date
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
+from healthlab.common import JsonObject, configure_logging
 from healthlab.data.datasets import read_dataset
 from healthlab.signal.contracts import Registry
 from healthlab.store import RunStore
 
 
-def identity(source_id, url):
+def identity(source_id: str, url: str) -> str:
     parsed = urlsplit(url)
     if source_id == "moh_portal":
         return "aid:" + parse_qs(parsed.query)["aid"][0]
@@ -30,7 +31,7 @@ def identity(source_id, url):
     return parsed.path.rstrip("/")
 
 
-def compare(store, dataset_id, reference_path):
+def compare(store: RunStore, dataset_id: str, reference_path: Path) -> JsonObject:
     reference_path = Path(reference_path)
     reference = json.loads(reference_path.read_bytes())
     if reference["schema_version"] != "coverage-reference-1":
@@ -60,11 +61,11 @@ def compare(store, dataset_id, reference_path):
             raw_path = (reference_path.parent / row["raw_file"]).resolve()
             if not raw_path.is_relative_to(reference_path.parent.resolve()):
                 raise ValueError("Reference evidence must be inside the audit directory")
-            key = (str(raw_path), row["raw_sha256"])
-            if key not in verified:
+            evidence_key = (str(raw_path), row["raw_sha256"])
+            if evidence_key not in verified:
                 if hashlib.sha256(raw_path.read_bytes()).hexdigest() != row["raw_sha256"]:
                     raise ValueError("Reference evidence hash mismatch")
-                verified.add(key)
+                verified.add(evidence_key)
             if not row["locator"] or not row["url"]:
                 raise ValueError("Reference evidence requires a locator and article URL")
             day = date.fromisoformat(row["date"])
@@ -146,6 +147,7 @@ def compare(store, dataset_id, reference_path):
 
 
 def main(argv=None):
+    configure_logging()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--store", type=Path, required=True)
     parser.add_argument("--dataset", required=True)

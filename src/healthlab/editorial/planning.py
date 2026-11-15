@@ -2,8 +2,9 @@
 
 import hashlib
 import json
+import logging
 
-from healthlab.common import decode_model_json
+from healthlab.common import JsonObject, decode_model_json
 from healthlab.data.pilot import runner_lock
 from healthlab.editorial.contracts import CONTEXT_CONTRACTS, passage_inputs
 from healthlab.editorial.packet import evidence_packet
@@ -11,10 +12,14 @@ from healthlab.editorial.prompts import messages
 from healthlab.editorial.review_policy import ContextReview, ai_review_required, validate_review
 from healthlab.editorial.runs import allocated_calls, jobs, load
 from healthlab.editorial.scope import validate_scope
-from healthlab.store import json_bytes
+from healthlab.store import RunStore, json_bytes
+
+logger = logging.getLogger(__name__)
 
 
-def plan_review(store, run_id, *, excluded_sample=16, all_articles=False):
+def plan_review(
+    store: RunStore, run_id: str, *, excluded_sample=16, all_articles=False
+) -> JsonObject:
     with runner_lock(store.root):
         run, records = load(store, run_id, for_inference=True)
         if not ai_review_required(run["version"]):
@@ -23,7 +28,8 @@ def plan_review(store, run_id, *, excluded_sample=16, all_articles=False):
             return run
         if any(j["role"] == "classify" and j["status"] == "prepared" for j in jobs(store, run)):
             raise ValueError("Finish attempting all articles before planning review")
-        relevant, excluded = [], []
+        relevant: list[JsonObject] = []
+        excluded: list[JsonObject] = []
         for job in jobs(store, run):
             if job["role"] != "classify" or job["status"] != "completed":
                 continue
@@ -75,7 +81,7 @@ def plan_review(store, run_id, *, excluded_sample=16, all_articles=False):
         return run
 
 
-def plan_scope(store, run_id, *, all_articles=False):
+def plan_scope(store: RunStore, run_id: str, *, all_articles=False) -> JsonObject:
     """Plan independent full-source scope checks within the same lifetime budget."""
     with runner_lock(store.root):
         run, records = load(store, run_id, for_inference=True)
@@ -112,7 +118,7 @@ def plan_scope(store, run_id, *, all_articles=False):
         return run
 
 
-def plan_draft(store, run_id):
+def plan_draft(store: RunStore, run_id: str) -> JsonObject:
     with runner_lock(store.root):
         run, _ = load(store, run_id, for_inference=True)
         if run["draft_planned"]:
@@ -135,7 +141,7 @@ def plan_draft(store, run_id):
         return run
 
 
-def adopt_reviewed(store, run_id, parent_id):
+def adopt_reviewed(store: RunStore, run_id: str, parent_id: str) -> JsonObject:
     """Adopt the parent's review and scope results where the prompt is byte-identical.
 
     Versions without an AI review step adopt scope results only.
@@ -183,7 +189,7 @@ def adopt_reviewed(store, run_id, parent_id):
                     job["proposal_sha256"] = proposals[identifier]
                 old = previous.get((role, identifier))
                 result = _adoptable(store, run, records[identifier], job, old)
-                if result is not None:
+                if old is not None and result is not None:  # Only an old answer is adoptable.
                     job.update(
                         status="completed",
                         reused_from=old["run_id"],
@@ -212,7 +218,9 @@ def adopt_reviewed(store, run_id, parent_id):
         }
 
 
-def _adoptable(store, run, row, job, old):
+def _adoptable(
+    store: RunStore, run: JsonObject, row: dict[str, str], job: JsonObject, old: JsonObject | None
+) -> JsonObject | None:
     if (
         not old
         or old["status"] != "completed"
@@ -233,6 +241,10 @@ def _adoptable(store, run, row, job, old):
             return validate_scope(payload, units)
         if run["version"] in CONTEXT_CONTRACTS:
             ContextReview.model_validate(payload)
+        assert proposal is not None  # Only review jobs get here; a failure means no reuse.
         return validate_review(payload, proposal, [u["passage_id"] for u in units], run["question"])
-    except Exception:
+    except Exception as exc:
+        # Any decode or validation failure means the old answer cannot be reused as is.
+        # Log only the type: validation messages can quote model or source text.
+        logger.debug("Recorded %s answer not reusable: %s", job["role"], type(exc).__name__)
         return None  # Keep the call unresolved rather than guess.

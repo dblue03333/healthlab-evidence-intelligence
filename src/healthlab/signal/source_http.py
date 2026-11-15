@@ -2,6 +2,7 @@
 
 import ssl
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
@@ -9,8 +10,11 @@ from email.utils import parsedate_to_datetime
 import httpx
 import truststore
 
+from healthlab.common import JsonObject
 from healthlab.models import IngestionError
 from healthlab.signal.diagnostics import Span, exception_diagnostic
+from healthlab.signal.storage import CollectionStorage
+from healthlab.store import RunStore
 
 
 @dataclass(frozen=True)
@@ -20,7 +24,7 @@ class FetchPolicy:
     backoff_seconds: float = 0.5
     max_retry_delay: float = 10.0
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not 1 <= self.max_attempts <= 5:
             raise ValueError("max_attempts must be between 1 and 5")
         if not 0 <= self.request_interval <= 10:
@@ -28,12 +32,12 @@ class FetchPolicy:
         if not 0 <= self.backoff_seconds <= self.max_retry_delay <= 30:
             raise ValueError("Invalid retry delay bounds")
 
-    def as_dict(self):
+    def as_dict(self) -> JsonObject:
         return asdict(self)
 
 
 class FetchFailure(IngestionError):
-    def __init__(self, code, *, retryable=False):
+    def __init__(self, code: str, *, retryable=False) -> None:
         super().__init__(code, "HTML request failed; inspect saved request audit")
         self.retryable = retryable
 
@@ -46,8 +50,15 @@ class HTMLFetcher:
     """
 
     def __init__(
-        self, client, store, policy=None, *, sleep=None, max_bytes=2_000_000, cache_only=False
-    ):
+        self,
+        client: httpx.Client | None,
+        store: CollectionStorage | RunStore,
+        policy: FetchPolicy | None = None,
+        *,
+        sleep=None,
+        max_bytes=2_000_000,
+        cache_only=False,
+    ) -> None:
         self.client = client
         self.store = store
         self.policy = policy or FetchPolicy()
@@ -59,15 +70,15 @@ class HTMLFetcher:
 
     def fetch(
         self,
-        url,
-        checkpoint,
-        save,
+        url: str,
+        checkpoint: JsonObject,
+        save: Callable,
         *,
         response_format="html",
         request_json=None,
         request_form=None,
         cache_namespace=None,
-    ):
+    ) -> tuple[bytes, str]:
         # POST is used only for public read-only portal APIs. Bind cache and
         # lifetime attempt budgets to both endpoint and canonical request body.
         import hashlib
@@ -110,7 +121,7 @@ class HTMLFetcher:
             self.sleep(remaining)
         for number in range(used + 1, self.policy.max_attempts + 1):
             self.sleep(self.policy.request_interval)
-            event = {
+            event: JsonObject = {
                 "url": url,
                 "attempt": number,
                 "status": "started",
@@ -131,6 +142,7 @@ class HTMLFetcher:
             retry_after = None
             span = Span()
             try:
+                assert self.client is not None  # Only a cache-only fetcher has no client.
                 with self.client.stream(
                     "GET" if body is None else "POST",
                     url,
@@ -252,9 +264,11 @@ class HTMLFetcher:
                     event["response_headers"] = headers
                 save()
                 return bytes(raw), digest
+        # The last attempt above either returns or raises.
+        raise FetchFailure("html_attempts_exhausted", retryable=True)
 
 
-def source_client():
+def source_client() -> httpx.Client:
     context = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
     # The Ministry server selects undersized finite-field DH. Offer the existing
     # secure cipher set without DHE; never lower security level or disable trust.

@@ -7,16 +7,17 @@ import re
 import tempfile
 import uuid
 from pathlib import Path
+from typing import Any
 
 from healthlab.common import utc_now
 from healthlab.models import MANIFEST_VERSION, PARSER_VERSION, IngestionError
 
 
-def json_bytes(value):
+def json_bytes(value: Any) -> bytes:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2).encode("utf-8")
 
 
-def sync_directory(path):
+def sync_directory(path: Path) -> None:
     fd = os.open(path, os.O_RDONLY)
     try:
         os.fsync(fd)
@@ -25,7 +26,7 @@ def sync_directory(path):
 
 
 class RunStore:
-    def __init__(self, root: Path):
+    def __init__(self, root: Path) -> None:
         self.root = Path(root)
         (self.root / "objects").mkdir(parents=True, exist_ok=True)
         (self.root / "runs").mkdir(exist_ok=True)
@@ -85,7 +86,7 @@ class RunStore:
         self.save(run)
         return run
 
-    def save(self, run: dict):
+    def save(self, run: dict) -> None:
         directory = self.root / "runs" / run["run_id"]
         fd, tmp = tempfile.mkstemp(dir=directory)
         try:

@@ -3,7 +3,9 @@
 import html
 import json
 from collections import Counter
+from pathlib import Path
 
+from healthlab.common import JsonObject
 from healthlab.editorial.contracts import passage_inputs
 from healthlab.editorial.dates import (
     DATE_POLICY,
@@ -13,7 +15,7 @@ from healthlab.editorial.dates import (
 )
 from healthlab.editorial.packet import evidence_packet
 from healthlab.editorial.runs import is_current_run, jobs, load
-from healthlab.store import json_bytes
+from healthlab.store import RunStore, json_bytes
 
 DATE_LABELS = {
     "yearless": "Thiếu năm",
@@ -26,7 +28,9 @@ DATE_LABELS = {
 }
 
 
-def date_review_details(row, article, window, version):
+def date_review_details(
+    row: dict[str, str], article: JsonObject, window: JsonObject, version: str
+) -> JsonObject | None:
     reasons = article["review_gate"]["reasons"]
     date_reasons = {"supported_in_window_development_missing", "current_development_missing"}
     if not date_reasons & set(reasons) or "relevant" not in {
@@ -58,7 +62,7 @@ def date_review_details(row, article, window, version):
     }
 
 
-def _date_review_html(detail):
+def _date_review_html(detail: JsonObject) -> str:
     esc = html.escape
     lines = []
     for item in detail["mentions"]:
@@ -78,7 +82,14 @@ def _date_review_html(detail):
     )
 
 
-def write_report(store, run, records, calls, packet, directory):
+def write_report(
+    store: RunStore,
+    run: JsonObject,
+    records: JsonObject,
+    calls: list[JsonObject],
+    packet: JsonObject,
+    directory: Path,
+) -> JsonObject:
     run_id = run["run_id"]
     counts = Counter(a["proposal"]["relevance"] for a in packet["articles"])
     result = {
@@ -192,7 +203,7 @@ def write_report(store, run, records, calls, packet, directory):
     return result
 
 
-def export_report(store, run_id):
+def export_report(store: RunStore, run_id: str) -> JsonObject:
     run, records = load(store, run_id)
     calls = jobs(store, run)
     packet = evidence_packet(store, run_id)

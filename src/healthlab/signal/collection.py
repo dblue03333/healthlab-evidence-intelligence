@@ -6,18 +6,20 @@ import xml.etree.ElementTree as ET
 from contextlib import contextmanager
 from datetime import date
 from html.parser import HTMLParser
+from typing import Any
 
 import httpx
 
-from healthlab.common import utc_now
+from healthlab.common import JsonObject, utc_now
 from healthlab.models import IngestionError, Question
 from healthlab.pipeline import ingest
-from healthlab.signal.contracts import Registry, SourceDocument
+from healthlab.pubmed import PubMedClient
+from healthlab.signal.contracts import Registry, Source, SourceDocument
 from healthlab.signal.html_adapter import PARSER_VERSION as HTML_PARSER_VERSION
 from healthlab.signal.html_sources import collect_html
 from healthlab.signal.source_http import FetchPolicy, HTMLFetcher, source_client
-from healthlab.signal.storage import collection_storage
-from healthlab.store import json_bytes
+from healthlab.signal.storage import CollectionStorage, collection_storage
+from healthlab.store import RunStore, json_bytes
 
 COLLECTION_VERSION = "signal-collection-9"
 
@@ -30,34 +32,34 @@ def pilot_lock(store):
 
 
 class PlainText(HTMLParser):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
-        self.parts = []
+        self.parts: list[str] = []
         self.hidden = 0
 
-    def handle_starttag(self, tag, attrs):
+    def handle_starttag(self, tag: str, attrs: list[Any]) -> None:
         if tag in {"script", "style"}:
             self.hidden += 1
         if tag in {"br", "p", "div"}:
             self.parts.append(" ")
 
-    def handle_endtag(self, tag):
+    def handle_endtag(self, tag: str) -> None:
         if tag in {"script", "style"}:
             self.hidden = max(0, self.hidden - 1)
         self.parts.append(" ")
 
-    def handle_data(self, data):
+    def handle_data(self, data: str) -> None:
         if not self.hidden:
             self.parts.append(data)
 
 
-def plain_text(value):
+def plain_text(value: str) -> str:
     parser = PlainText()
     parser.feed(value)
     return " ".join("".join(parser.parts).split())
 
 
-def parse_rss(raw, source, raw_hash):
+def parse_rss(raw: bytes, source: Source, raw_hash: str) -> tuple[list[SourceDocument], JsonObject]:
     if len(raw) > 2_000_000 or b"<!DOCTYPE" in raw.upper() or b"<!ENTITY" in raw.upper():
         raise IngestionError("rss_invalid", "Feed exceeds limits or contains a DTD")
     try:
@@ -98,7 +100,7 @@ def parse_rss(raw, source, raw_hash):
     }
 
 
-def _snapshot(store, document):
+def _snapshot(store: CollectionStorage, document: SourceDocument) -> JsonObject:
     # Batch bytes change even if this particular article has not changed.
     # Use article text+metadata for change detection while retaining original raw provenance.
     body = document.model_dump()
@@ -114,7 +116,7 @@ def _snapshot(store, document):
     }
 
 
-def _configuration(run):
+def _configuration(run: JsonObject) -> str:
     return hashlib.sha256(
         json_bytes(
             {
@@ -137,8 +139,8 @@ def _configuration(run):
 
 
 def collect(
-    store,
-    registry,
+    store: RunStore | CollectionStorage,
+    registry: Registry,
     *,
     mindate,
     maxdate,
@@ -148,7 +150,7 @@ def collect(
     on_started=None,
     remember_candidates=False,
     operation_id=None,
-):
+) -> JsonObject:
     if mindate > maxdate:
         raise ValueError("mindate must not be later than maxdate")
     if remember_candidates and any(s.kind != "html" for s in registry.sources if s.enabled):
@@ -189,7 +191,9 @@ def collect(
             rss_client.close()
 
 
-def resume_collection(store, run_id, *, rss_client=None):
+def resume_collection(
+    store: RunStore | CollectionStorage, run_id: str, *, rss_client=None
+) -> JsonObject:
     """Resume interrupted HTML collection only; finished collections are immutable.
 
     The listing and successful responses are frozen. Start a new collect command
@@ -242,8 +246,15 @@ def resume_collection(store, run_id, *, rss_client=None):
 
 
 def _collect_locked(
-    store, legacy_store, run, registry, mindate, maxdate, rss_client, pubmed_client
-):
+    store: CollectionStorage,
+    legacy_store: RunStore | CollectionStorage,
+    run: JsonObject,
+    registry: Registry,
+    mindate: date,
+    maxdate: date,
+    rss_client: httpx.Client | None,
+    pubmed_client: PubMedClient | None,
+) -> JsonObject:
     index = store.state.load_index()
     for source in registry.sources:
         if not source.enabled:
@@ -261,9 +272,11 @@ def _collect_locked(
             }
             run["source_checks"].append(check)
         store.save(run)
-        documents = []
+        documents: list[SourceDocument] = []
         try:
             if source.kind == "rss":
+                # A live collection always has an RSS client, and RSS sources require a URL.
+                assert rss_client is not None and source.url is not None
                 # No redirects or arbitrarily large response bodies.
                 with rss_client.stream("GET", source.url) as response:
                     if response.status_code != 200:
@@ -366,7 +379,7 @@ def _collect_locked(
                 reference = _snapshot(store, document)
                 key = source.source_id + ":" + document.document_id
                 indexed = index.get(key)
-                observation = next(
+                observation: JsonObject = next(
                     (c for c in check.get("article_checks", []) if c["url"] == document.url), {}
                 )
                 observed_at = observation.get(
@@ -382,7 +395,7 @@ def _collect_locked(
                     else None
                 )
                 changed = previous is None or previous["content_hash"] != reference["content_hash"]
-                if not changed:
+                if previous is not None and not changed:
                     # Keep the first snapshot's raw lineage for identical document content.
                     previous_document = SourceDocument.model_validate_json(
                         store.read(previous["snapshot_id"])
@@ -430,13 +443,21 @@ def _collect_locked(
     return run
 
 
-def replay_collection(store, run_id, *, registry=None, on_started=None):
+def replay_collection(
+    store: RunStore, run_id: str, *, registry=None, on_started=None
+) -> JsonObject:
     return _reprocess_collection(store, run_id, registry=registry, on_started=on_started)
 
 
 def repair_collection(
-    store, run_id, *, registry=None, on_started=None, rss_client=None, operation_id=None
-):
+    store: RunStore,
+    run_id: str,
+    *,
+    registry=None,
+    on_started=None,
+    rss_client=None,
+    operation_id=None,
+) -> JsonObject:
     """Explicit new run: reuse successes, fetch cache misses with a new bounded budget."""
     return _reprocess_collection(
         store,
@@ -450,15 +471,15 @@ def repair_collection(
 
 
 def _reprocess_collection(
-    store,
-    run_id,
+    store: RunStore,
+    run_id: str,
     *,
     registry=None,
     on_started=None,
     repair=False,
     rss_client=None,
     operation_id=None,
-):
+) -> JsonObject:
     """Reparse a frozen capture into a NEW collection. Cache misses remain gaps.
 
     The old manifest and source responses are immutable. This deliberately uses
@@ -503,7 +524,7 @@ def _reprocess_collection(
         for source in registry.sources:
             if not source.enabled:
                 continue
-            check = next(
+            check: JsonObject = next(
                 (c for c in previous["source_checks"] if c["source_id"] == source.source_id), {}
             )
             checkpoint = (
@@ -556,7 +577,7 @@ def _reprocess_collection(
                 client.close()
 
 
-def collection_status(store, run_id):
+def collection_status(store: RunStore, run_id: str) -> JsonObject:
     storage = collection_storage(store)
     # Run saves are atomic snapshots. Do not block behind the collection writer's
     # long-lived lock; this report does not read or claim a transaction with index.
@@ -599,7 +620,7 @@ def collection_status(store, run_id):
     }
 
 
-def load_documents(store, collection):
+def load_documents(store: RunStore | CollectionStorage, collection: JsonObject) -> JsonObject:
     if collection.get("mode") != "signal_collection":
         raise ValueError("Expected a Signal collection run")
     documents = {}
